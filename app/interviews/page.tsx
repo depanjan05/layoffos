@@ -614,15 +614,17 @@ export default function InterviewsPage() {
                       </select>
 
                       <button
+                        type="button"
                         onClick={() => editInterview(item)}
-                        className="rounded-lg border border-[#d8d8d2] bg-white px-3 py-2 text-xs font-semibold hover:bg-[#f5f5f1]"
+                        className="rounded-lg border border-[#d8d8d2] bg-white px-3 py-2 text-xs font-semibold text-[#111] hover:bg-[#f5f5f1]"
                       >
                         Edit
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => deleteInterview(item.id)}
-                        className="rounded-lg border border-[#e4d4d1] px-3 py-2 text-xs font-semibold text-[#75463f] hover:bg-[#faf2f0]"
+                        className="rounded-lg border border-[#d8d8d2] bg-white px-3 py-2 text-xs font-semibold text-[#77776f] hover:border-[#aaa] hover:text-[#111]"
                       >
                         Delete
                       </button>
@@ -634,52 +636,14 @@ export default function InterviewsPage() {
           )}
         </section>
 
-        <section className="mt-10 rounded-3xl bg-[#111] p-8 text-white md:p-10">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#999]">
-            Keep the loop closed
-          </p>
-
-          <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-tight md:text-4xl">
-            An interview is not finished when the call ends.
-          </h2>
-
-          <p className="mt-4 max-w-2xl leading-7 text-[#b8b8b8]">
-            Track the next action, follow up when you said you would, and keep
-            the entire opportunity connected to the rest of your recovery
-            system.
-          </p>
-
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link
-              href="/job-search"
-              className="rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#111] hover:bg-[#e8e8e5]"
-            >
-              Job Search OS →
-            </Link>
-
-            <Link
-              href="/networking"
-              className="rounded-xl border border-[#444] px-5 py-3 text-sm font-bold text-white hover:bg-[#1d1d1d]"
-            >
-              Networking OS
-            </Link>
-
-            <Link
-              href="/companies"
-              className="rounded-xl border border-[#444] px-5 py-3 text-sm font-bold text-white hover:bg-[#1d1d1d]"
-            >
-              Target Companies
-            </Link>
-          </div>
-        </section>
-
-        <footer className="py-12 text-center text-sm text-[#999990]">
-          LayoffOS · A practical recovery system for your next move.
+        <footer className="border-t border-[#deded7] py-8 text-center text-sm text-[#999990]">
+          LayoffOS · Keep the pipeline moving.
         </footer>
       </div>
     </main>
   );
 }
+
 
 function StatCard({
   label,
@@ -691,11 +655,16 @@ function StatCard({
   alert?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[#deded8] bg-white p-5">
+    <div
+      className={`rounded-2xl border p-5 ${
+        alert
+          ? "border-[#d9b9b3] bg-[#f8eeec]"
+          : "border-[#deded8] bg-white"
+      }`}
+    >
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
         {label}
       </p>
-
       <p
         className={`mt-3 text-3xl font-bold tracking-tight ${
           alert ? "text-[#75463f]" : "text-[#111]"
