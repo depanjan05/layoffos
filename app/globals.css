@@ -1939,3 +1939,18 @@ button span,
 .site-nav-cta span {
   color: #fff;
 }
+
+/* ================================
+   DARK CTA TEXT FIX
+   ================================ */
+
+[class*="bg-[#111]"] {
+  color: #fff !important;
+}
+
+[class*="bg-[#111]"] a,
+[class*="bg-[#111]"] button,
+[class*="bg-[#111]"] span {
+  color: inherit !important;
+}
+
