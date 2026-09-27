@@ -1954,3 +1954,27 @@ button span,
   color: inherit !important;
 }
 
+
+/* ================================
+   WHITE BUTTON TEXT FIX
+   ================================ */
+
+button[class*="bg-white"] {
+  color: #111 !important;
+}
+
+button[class*="bg-white"] span,
+button[class*="bg-white"] svg {
+  color: inherit !important;
+}
+
+
+/* White-background links must use dark text */
+a[class*="bg-white"] {
+  color: #111 !important;
+}
+
+a[class*="bg-white"] span {
+  color: inherit !important;
+}
+
