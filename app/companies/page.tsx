@@ -56,6 +56,7 @@ const emptyForm: Omit<Company, "id"> = {
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
@@ -87,26 +88,62 @@ export default function CompaniesPage() {
     return {
       total: companies.length,
       highPriority: companies.filter((c) => c.priority === "High").length,
-      active: companies.filter(
-        (c) => c.status !== "Closed"
-      ).length,
+      active: companies.filter((c) => c.status !== "Closed").length,
       interviewing: companies.filter(
         (c) => c.status === "Interviewing"
       ).length,
     };
   }, [companies]);
 
-  function addCompany() {
-    if (!form.name.trim() || !form.role.trim()) return;
+  function startAdding() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setShowForm(true);
+  }
 
-    const company: Company = {
-      id: crypto.randomUUID(),
-      ...form,
-    };
+  function startEditing(company: Company) {
+    const { id, ...companyData } = company;
 
-    setCompanies((current) => [company, ...current]);
+    setEditingId(id);
+    setForm(companyData);
+    setShowForm(true);
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  function cancelForm() {
+    setEditingId(null);
     setForm(emptyForm);
     setShowForm(false);
+  }
+
+  function saveCompany() {
+    if (!form.name.trim() || !form.role.trim()) return;
+
+    if (editingId) {
+      setCompanies((current) =>
+        current.map((company) =>
+          company.id === editingId
+            ? {
+                ...company,
+                ...form,
+              }
+            : company
+        )
+      );
+    } else {
+      const company: Company = {
+        id: crypto.randomUUID(),
+        ...form,
+      };
+
+      setCompanies((current) => [company, ...current]);
+    }
+
+    cancelForm();
   }
 
   function updateCompany(
@@ -166,7 +203,7 @@ export default function CompaniesPage() {
             </div>
 
             <button
-              onClick={() => setShowForm(true)}
+              onClick={startAdding}
               className="shrink-0 rounded-lg bg-[#111] px-6 py-3 text-sm font-semibold !text-white"
             >
               + Add company
@@ -185,15 +222,16 @@ export default function CompaniesPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-widest text-[#777770]">
-                    NEW TARGET
+                    {editingId ? "EDIT TARGET" : "NEW TARGET"}
                   </p>
+
                   <h2 className="mt-2 text-2xl font-bold">
-                    Add a company
+                    {editingId ? "Edit company" : "Add a company"}
                   </h2>
                 </div>
 
                 <button
-                  onClick={() => setShowForm(false)}
+                  onClick={cancelForm}
                   className="text-sm text-[#777770]"
                 >
                   Cancel
@@ -335,13 +373,14 @@ export default function CompaniesPage() {
                 </div>
               </div>
 
-<button
-  onClick={addCompany}
-  style={{ color: "#fff", backgroundColor: "#111" }}
-  className="mt-6 rounded-lg px-6 py-3 text-sm font-semibold"
->
-  + Add company
-</button>            </section>
+              <button
+                onClick={saveCompany}
+                style={{ color: "#fff", backgroundColor: "#111" }}
+                className="mt-6 rounded-lg px-6 py-3 text-sm font-semibold"
+              >
+                {editingId ? "Save changes" : "+ Add company"}
+              </button>
+            </section>
           )}
 
           <section className="mt-10">
@@ -372,7 +411,7 @@ export default function CompaniesPage() {
                 </p>
 
                 <button
-                  onClick={() => setShowForm(true)}
+                  onClick={startAdding}
                   className="mt-6 rounded-lg bg-[#111] px-6 py-3 text-sm font-semibold text-white"
                 >
                   + Add your first company
@@ -430,7 +469,7 @@ export default function CompaniesPage() {
                               e.target.value
                             )
                           }
-                          className="mt-2 rounded-lg border border-[#deded7] bg-white px-3 py-2 text-sm"
+                          className="mt-2 rounded-lg border border-[#deded7] bg-white px-3 py-2 text-sm font-semibold"
                         >
                           {statuses.map((status) => (
                             <option key={status}>{status}</option>
@@ -447,48 +486,74 @@ export default function CompaniesPage() {
                           {company.nextAction || "No action set"}
                         </p>
 
-                        {company.contact && (
+                        {company.dueDate && (
                           <p className="mt-1 text-xs text-[#777770]">
-                            {company.contact}
+                            Due{" "}
+                            {new Date(
+                              `${company.dueDate}T00:00:00`
+                            ).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
                           </p>
                         )}
                       </div>
 
-                      <button
-                        onClick={() => deleteCompany(company.id)}
-                        className="text-sm text-[#aaa] hover:text-[#111]"
-                      >
-                        Remove
-                      </button>
+                      <div className="flex items-center gap-2 lg:justify-end">
+                        <button
+                          onClick={() => startEditing(company)}
+                          className="rounded-lg border border-[#ccc] bg-white px-4 py-2 text-sm font-semibold text-[#111] hover:bg-[#f5f5f2]"
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          onClick={() => deleteCompany(company.id)}
+                          className="rounded-lg border border-[#ddd] bg-white px-4 py-2 text-sm font-semibold text-[#777770] hover:border-[#aaa] hover:text-[#111]"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
+
+                    {(company.contact || company.notes) && (
+                      <div className="mt-5 grid gap-4 border-t border-[#eee] pt-5 md:grid-cols-2">
+                        {company.contact && (
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-widest text-[#999]">
+                              CONTACT
+                            </p>
+                            <p className="mt-1 text-sm">
+                              {company.contact}
+                            </p>
+                          </div>
+                        )}
+
+                        {company.notes && (
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-widest text-[#999]">
+                              NOTES
+                            </p>
+                            <p className="mt-1 text-sm leading-6 text-[#66665f]">
+                              {company.notes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </article>
                 ))}
               </div>
             )}
           </section>
         </section>
+
+        <footer className="pb-14 pt-8 text-center text-sm text-[#999990]">
+          LayoffOS · A practical recovery system for your next move.
+        </footer>
       </div>
     </main>
-  );
-}
-
-function Stat({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="rounded-2xl border border-[#deded7] bg-white p-6">
-      <p className="text-xs font-bold uppercase tracking-widest text-[#999]">
-        {label}
-      </p>
-
-      <p className="mt-4 text-4xl font-bold tracking-tight">
-        {value}
-      </p>
-    </div>
   );
 }
 
@@ -513,8 +578,28 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-2 w-full rounded-xl border border-[#deded7] bg-white px-4 py-3 outline-none focus:border-[#999]"
+        className="mt-2 w-full rounded-xl border border-[#deded7] bg-white px-4 py-3"
       />
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-2xl border border-[#deded7] bg-white p-5">
+      <p className="text-xs font-bold uppercase tracking-widest text-[#999990]">
+        {label}
+      </p>
+
+      <p className="mt-3 text-3xl font-bold tracking-tight">
+        {value}
+      </p>
     </div>
   );
 }
