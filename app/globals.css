@@ -1897,50 +1897,6 @@ a {
 }
 
 /* ================================
-   GLOBAL BUTTON TEXT FIX
-   ================================ */
-
-button {
-  color: #fff;
-  background: #111;
-  border: 1px solid #111;
-}
-
-button:hover {
-  color: #fff;
-  background: #222;
-}
-
-.primary-button,
-.site-nav-cta {
-  color: #fff;
-  background: #111;
-}
-
-.primary-button:hover,
-.site-nav-cta:hover {
-  color: #fff;
-  background: #222;
-}
-
-.secondary-button {
-  color: #111;
-}
-
-.secondary-button:hover {
-  color: #111;
-}
-
-button,
-button span,
-.primary-button,
-.primary-button span,
-.site-nav-cta,
-.site-nav-cta span {
-  color: #fff;
-}
-
-/* ================================
    DARK CTA TEXT FIX
    ================================ */
 
@@ -1976,5 +1932,23 @@ a[class*="bg-white"] {
 
 a[class*="bg-white"] span {
   color: inherit !important;
+}
+
+
+/* First 72 Hours task cards */
+button.group.w-full {
+  background: #fff !important;
+  color: #111 !important;
+}
+
+button.group.w-full[class*="bg-[#f3f3ef]"] {
+  background: #f3f3ef !important;
+  color: #111 !important;
+}
+
+button.group.w-full h3,
+button.group.w-full p,
+button.group.w-full span {
+  color: inherit;
 }
 
