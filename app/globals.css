@@ -1952,3 +1952,144 @@ button.group.w-full span {
   color: inherit;
 }
 
+
+/* =========================================================
+   VIEWPORT RESPONSIVE HARDENING — V0.2
+   ========================================================= */
+
+/* Prevent accidental horizontal page overflow */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Make sizing predictable */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Media should never escape its container */
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Long text / URLs should not force horizontal overflow */
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+a,
+span,
+td,
+th {
+  overflow-wrap: anywhere;
+}
+
+/* Shared page containers */
+main {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Grids should be allowed to shrink */
+.grid {
+  min-width: 0;
+}
+
+.grid > * {
+  min-width: 0;
+}
+
+/* Flex children must be allowed to shrink */
+.flex > * {
+  min-width: 0;
+}
+
+/* Form controls should respect the viewport */
+input,
+textarea,
+select {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Prevent fixed-width elements from escaping their parent */
+button,
+a {
+  max-width: 100%;
+}
+
+/* =========================================================
+   TABLE / DATA SAFETY
+   ========================================================= */
+
+table {
+  max-width: 100%;
+}
+
+[role="table"] {
+  max-width: 100%;
+}
+
+/* =========================================================
+   MOBILE VIEWPORT
+   ========================================================= */
+
+@media (max-width: 767px) {
+  /* Keep page content comfortably inside narrow screens */
+  main {
+    width: 100%;
+  }
+
+  /* Stack common multi-column grids */
+  .grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Don't let oversized headings create awkward layouts */
+  h1 {
+    max-width: 100%;
+  }
+
+  /* Form controls become full width */
+  input,
+  textarea,
+  select {
+    width: 100%;
+  }
+
+  /* Buttons shouldn't force a wider row */
+  button {
+    max-width: 100%;
+  }
+}
+
+/* =========================================================
+   VERY SMALL VIEWPORTS
+   ========================================================= */
+
+@media (max-width: 380px) {
+  body {
+    min-width: 0;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 10vw, 3rem);
+  }
+
+  h2 {
+    font-size: clamp(1.5rem, 7vw, 2rem);
+  }
+}
