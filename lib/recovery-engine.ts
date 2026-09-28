@@ -837,7 +837,11 @@ function getActions(
     );
   }
 
-  if (state === "STABILIZING" || state === "SEARCHING") {
+  if (
+    state === "STABILIZING" ||
+    state === "SEARCHING" ||
+    (runwayMonths !== null && runwayMonths < 2)
+  ) {
     if (runwayMonths !== null && runwayMonths < 4) {
       actions.push({
         title: "Review your financial runway",
@@ -1111,6 +1115,60 @@ function getActions(
       )
   );
 
+  const hasCriticalRunway =
+    runwayMonths !== null && runwayMonths < 2;
+
+  const getActionCategory = (action: RecoveryAction): string => {
+    const title = normalize(action.title);
+
+    if (action.href === "/runway") {
+      return "FINANCIAL";
+    }
+
+    if (
+      title.includes("compensation") ||
+      title.includes("financial position") ||
+      title.includes("offer pipeline")
+    ) {
+      return "OFFER_DECISION";
+    }
+
+    if (
+      title.includes("final-round") ||
+      title.includes("active final round")
+    ) {
+      return "FINAL_ROUND";
+    }
+
+    if (
+      title.includes("interview") ||
+      title.includes("active interview")
+    ) {
+      return "INTERVIEW_EXECUTION";
+    }
+
+    if (
+      title.includes("network") ||
+      title.includes("referral")
+    ) {
+      return "NETWORKING";
+    }
+
+    if (
+      title.includes("application") ||
+      title.includes("opportunity") ||
+      title.includes("pipeline")
+    ) {
+      return "PIPELINE_BUILDING";
+    }
+
+    if (action.priority === "DIRECTION") {
+      return "DIRECTION";
+    }
+
+    return action.priority;
+  };
+
   const rankedActions = uniqueActions
     .filter(
       (action) =>
@@ -1131,7 +1189,6 @@ function getActions(
       const title = normalize(action.title);
       let score = priorityBase[action.priority];
 
-      // Evidence-backed actions get a modest boost.
       if (evidence) {
         score += 5;
       }
@@ -1192,8 +1249,7 @@ function getActions(
         }
       }
 
-      // Accepted offer: closing the transition takes precedence
-      // over generic offer-management actions.
+      // Accepted offer.
       if (pipelineComposition.acceptedOffers > 0) {
         if (title.includes("confirm your accepted offer")) {
           score += 35;
@@ -1226,8 +1282,7 @@ function getActions(
         }
       }
 
-      // Final-round opportunities are more urgent than general
-      // pipeline-building actions.
+      // Final-round opportunities.
       if (pipelineComposition.finalRounds > 0) {
         if (action.href === "/interviews") {
           score += 25;
@@ -1238,8 +1293,7 @@ function getActions(
         }
       }
 
-      // Active interviews should generally outrank new application
-      // volume while an interview path is open.
+      // Active interviews.
       if (pipelineComposition.activeInterviews > 0) {
         if (action.href === "/interviews") {
           score += 18;
@@ -1253,8 +1307,7 @@ function getActions(
         }
       }
 
-      // Applications with no active interviews need conversion,
-      // not simply more application volume.
+      // Applications with no active interviews.
       if (
         pipelineComposition.activeApplications > 0 &&
         pipelineComposition.activeInterviews === 0
@@ -1270,8 +1323,7 @@ function getActions(
         }
       }
 
-      // Networking follow-ups are more actionable than generic
-      // networking activity.
+      // Networking follow-ups.
       const hasNetworkFollowUp = (
         input.networkContacts ?? []
       ).some((contact) => {
@@ -1292,8 +1344,7 @@ function getActions(
         score += 22;
       }
 
-      // Recent progression should increase urgency for actions
-      // connected to the changed opportunity.
+      // Recent progression.
       if (
         progressionSignal === "ADVANCING" &&
         recentProgression
@@ -1331,10 +1382,68 @@ function getActions(
         evidence,
         score,
         index,
+        category: getActionCategory(action),
       };
     });
 
-  return rankedActions
+  const sortedActions = rankedActions.sort(
+    (a, b) =>
+      b.score - a.score ||
+      priorityBase[b.action.priority] -
+        priorityBase[a.action.priority] ||
+      a.index - b.index
+  );
+
+  const selectedActions: typeof sortedActions = [];
+  const selectedCategories = new Set<string>();
+
+  // Critical financial runway is a hard constraint:
+  // never allow an urgent interview/search context to completely
+  // hide financial runway risk.
+  if (hasCriticalRunway) {
+    const financialAction = sortedActions.find(
+      (item) => item.category === "FINANCIAL"
+    );
+
+    if (financialAction) {
+      selectedActions.push(financialAction);
+      selectedCategories.add(financialAction.category);
+    }
+  }
+
+  // First pass: maximize action diversity.
+  for (const item of sortedActions) {
+    if (selectedActions.length >= 5) {
+      break;
+    }
+
+    if (selectedCategories.has(item.category)) {
+      continue;
+    }
+
+    selectedActions.push(item);
+    selectedCategories.add(item.category);
+  }
+
+  // Second pass: fill remaining slots with the strongest
+  // remaining actions when there are not enough categories.
+  for (const item of sortedActions) {
+    if (selectedActions.length >= 5) {
+      break;
+    }
+
+    if (
+      selectedActions.some(
+        (selected) => selected.index === item.index
+      )
+    ) {
+      continue;
+    }
+
+    selectedActions.push(item);
+  }
+
+  const finalActions = selectedActions
     .sort(
       (a, b) =>
         b.score - a.score ||
@@ -1347,6 +1456,8 @@ function getActions(
       ...action,
       evidence,
     }));
+
+return finalActions;
 }
 
 function getPipelineComposition(
