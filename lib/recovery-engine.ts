@@ -570,7 +570,8 @@ function getActions(
   state: RecoveryState,
   runwayMonths: number | null,
   recentProgression: RecentProgression | null,
-  progressionSignal: ProgressionSignal
+  progressionSignal: ProgressionSignal,
+  pipelineSignal: PipelineSignal
 ): RecoveryAction[] {
   const actions: RecoveryAction[] = [];
 
@@ -662,6 +663,73 @@ function getActions(
 
   const hasActiveApplications = activeApplications.length > 0;
   const hasActiveInterviews = activeInterviews.length > 0;
+
+  // v1.8: translate the overall pipeline shape into concrete actions.
+  if (pipelineSignal === "OFFER_STAGE") {
+    actions.push({
+      title: "Keep one backup opportunity moving",
+      reason:
+        "An offer-stage opportunity is active, but keeping one other path alive protects the recovery pipeline until the offer is resolved.",
+      href: "/job-search",
+      priority: "APPLICATIONS",
+    });
+  }
+
+  if (pipelineSignal === "SETBACK") {
+    actions.push({
+      title: "Create a replacement opportunity",
+      reason:
+        "A recent opportunity closed or was rejected. Replace the lost pipeline capacity with another concrete opportunity.",
+      href: "/job-search",
+      priority: "APPLICATIONS",
+    });
+
+    actions.push({
+      title: "Start a new referral conversation",
+      reason:
+        "Use networking to create another path after the recent setback.",
+      href: "/networking",
+      priority: "NETWORKING",
+    });
+  }
+
+  if (pipelineSignal === "BUILDING") {
+    actions.push({
+      title: "Keep advancing active opportunities",
+      reason:
+        "Your pipeline is showing forward movement. Focus on opportunities already gaining momentum before adding unnecessary volume.",
+      href: hasActiveInterviews ? "/interviews" : "/job-search",
+      priority: hasActiveInterviews ? "INTERVIEWS" : "APPLICATIONS",
+    });
+  }
+
+  if (pipelineSignal === "ACTIVE") {
+    actions.push({
+      title: "Move your active pipeline forward",
+      reason:
+        "You have active opportunities. Keep the next action explicit rather than allowing the pipeline to become passive.",
+      href: hasActiveInterviews ? "/interviews" : "/job-search",
+      priority: hasActiveInterviews ? "INTERVIEWS" : "APPLICATIONS",
+    });
+  }
+
+  if (pipelineSignal === "THIN") {
+    actions.push({
+      title: "Add a new target opportunity",
+      reason:
+        "Your active opportunity pipeline is currently light. Add a concrete target to rebuild search momentum.",
+      href: "/job-search",
+      priority: "APPLICATIONS",
+    });
+
+    actions.push({
+      title: "Create a new networking path",
+      reason:
+        "A thin pipeline benefits from adding warm conversations alongside applications.",
+      href: "/networking",
+      priority: "NETWORKING",
+    });
+  }
 
   if (state === "JUST_LAID_OFF") {
     actions.push(
@@ -964,7 +1032,17 @@ function getActions(
 
   const completedActions = input.completedActions ?? [];
 
-  return actions
+  const uniqueActions = actions.filter(
+    (action, index, all) =>
+      index ===
+      all.findIndex(
+        (candidate) =>
+          candidate.title === action.title &&
+          candidate.href === action.href
+      )
+  );
+
+  return uniqueActions
     .filter(
       (action) =>
         !completedActions.some(
@@ -1154,7 +1232,8 @@ export function calculateRecovery(
       state,
       runwayMonths,
       recentProgression,
-      progressionSignal
+      progressionSignal,
+      pipelineSignal
     ),
     transition: getTransition(input, state),
     recentProgression,
