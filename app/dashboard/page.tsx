@@ -4,6 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/browser";
 
+type RecoveryEngineResult = {
+  state: string;
+  stateLabel: string;
+  stateReason: string;
+  runwayMonths: number | null;
+  priorities: string[];
+  actions: {
+    title: string;
+    reason: string;
+    href: string;
+    priority: string;
+  }[];
+};
+
 type RecoveryData = {
   laidOffWhen: string;
   savings: number;
@@ -159,6 +173,8 @@ function isUpcoming(dateValue: string) {
 
 export default function DashboardPage() {
   const [recovery, setRecovery] = useState<RecoveryData>(defaultRecovery);
+  const [recoveryEngine, setRecoveryEngine] =
+    useState<RecoveryEngineResult | null>(null);
   const [runwayData, setRunwayData] = useState<RunwayData | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -417,6 +433,34 @@ export default function DashboardPage() {
     }
 
     loadDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecoveryEngine() {
+      try {
+        const response = await fetch("/api/recovery-engine");
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+
+        if (!cancelled && data) {
+          setRecoveryEngine(data);
+        }
+      } catch {
+        // Keep the dashboard usable if the engine is unavailable.
+      }
+    }
+
+    loadRecoveryEngine();
 
     return () => {
       cancelled = true;
@@ -818,6 +862,95 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+
+        {recoveryEngine && (
+          <section className="mb-10">
+            <div className="rounded-3xl border border-[#deded8] bg-white p-7 md:p-9">
+              <div className="flex flex-col justify-between gap-6 md:flex-row md:items-start">
+                <div className="max-w-3xl">
+                  <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                    Recovery engine
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
+                      {recoveryEngine.stateLabel}
+                    </h2>
+
+                    <span className="rounded-full bg-[#f1f1ec] px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#66665f]">
+                      {recoveryEngine.state.replaceAll("_", " ")}
+                    </span>
+                  </div>
+
+                  <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66665f]">
+                    {recoveryEngine.stateReason}
+                  </p>
+                </div>
+
+                <div className="min-w-[150px] rounded-2xl bg-[#f7f7f4] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
+                    Runway
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold">
+                    {recoveryEngine.runwayMonths === null
+                      ? "—"
+                      : `${recoveryEngine.runwayMonths.toFixed(1)} mo`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                    Current priorities
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {recoveryEngine.priorities.map((priority) => (
+                      <span
+                        key={priority}
+                        className="rounded-full border border-[#deded8] px-3 py-2 text-sm text-[#33332f]"
+                      >
+                        {priority}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                    Recommended next actions
+                  </p>
+
+                  <div className="mt-4 space-y-3">
+                    {recoveryEngine.actions.slice(0, 3).map((action) => (
+                      <Link
+                        key={`${action.title}-${action.href}`}
+                        href={action.href}
+                        className="block rounded-2xl border border-[#deded8] p-4 transition hover:border-[#bdbdb5] hover:bg-[#fafaf7]"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h3 className="font-semibold text-[#111]">
+                              {action.title}
+                            </h3>
+                            <p className="mt-1 text-sm leading-5 text-[#66665f]">
+                              {action.reason}
+                            </p>
+                          </div>
+
+                          <span className="shrink-0 text-lg text-[#77776f]">
+                            →
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section className="mb-10">
           <div className="mb-5 flex items-end justify-between">
