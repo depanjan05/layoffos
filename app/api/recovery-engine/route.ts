@@ -25,6 +25,7 @@ export async function GET() {
     interviewsResult,
     companiesResult,
     networkingResult,
+    completedActionsResult,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -65,6 +66,13 @@ export async function GET() {
         "name, company, role, status, last_contacted, next_action, linked_application_id"
       )
       .eq("user_id", user.id),
+
+    supabase
+      .from("events")
+      .select("event_type, entity_type, metadata")
+      .eq("user_id", user.id)
+      .eq("event_type", "recovery_action_completed")
+      .eq("entity_type", "recovery_action"),
   ]);
 
   const result = calculateRecovery({
@@ -111,7 +119,94 @@ export async function GET() {
       nextAction: item.next_action,
       linkedApplicationId: item.linked_application_id,
     })),
+
+    completedActions: (completedActionsResult.data ?? [])
+      .map((event) => {
+        const metadata =
+          event.metadata &&
+          typeof event.metadata === "object" &&
+          !Array.isArray(event.metadata)
+            ? (event.metadata as {
+                title?: string;
+                href?: string;
+              })
+            : {};
+
+        return {
+          title: metadata.title ?? null,
+          href: metadata.href ?? null,
+        };
+      })
+      .filter((action) => action.title && action.href),
   });
 
   return NextResponse.json(result);
+}
+
+export async function POST(request: Request) {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Not authenticated" },
+      { status: 401 }
+    );
+  }
+
+  let body: {
+    title?: string;
+    href?: string;
+    state?: string;
+  };
+
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid JSON body" },
+      { status: 400 }
+    );
+  }
+
+  const title = body.title?.trim();
+  const href = body.href?.trim();
+  const state = body.state?.trim();
+
+  if (!title || !href || !state) {
+    return NextResponse.json(
+      { error: "title, href, and state are required" },
+      { status: 400 }
+    );
+  }
+
+  const { error } = await supabase.from("events").insert({
+    user_id: user.id,
+    event_type: "recovery_action_completed",
+    entity_type: "recovery_action",
+    metadata: {
+      title,
+      href,
+      state,
+      completed_at: new Date().toISOString(),
+    },
+  });
+
+  if (error) {
+    return NextResponse.json(
+      {
+        error: error.message,
+        code: error.code,
+      },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    message: "Recovery action marked complete.",
+  });
 }

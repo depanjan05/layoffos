@@ -176,6 +176,8 @@ export default function DashboardPage() {
   const [recovery, setRecovery] = useState<RecoveryData>(defaultRecovery);
   const [recoveryEngine, setRecoveryEngine] =
     useState<RecoveryEngineResult | null>(null);
+  const [completingRecoveryAction, setCompletingRecoveryAction] =
+    useState<string | null>(null);
   const [runwayData, setRunwayData] = useState<RunwayData | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -467,6 +469,60 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, []);
+
+  async function completeRecoveryAction(
+    action: RecoveryEngineResult["actions"][number]
+  ) {
+    const actionKey = `${action.title}-${action.href}`;
+
+    if (completingRecoveryAction) {
+      return;
+    }
+
+    setCompletingRecoveryAction(actionKey);
+
+    try {
+      const response = await fetch("/api/recovery-engine", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: action.title,
+          href: action.href,
+          state: recoveryEngine?.state ?? "",
+        }),
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      setRecoveryEngine((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          actions: current.actions.filter(
+            (item) =>
+              item.title !== action.title ||
+              item.href !== action.href
+          ),
+        };
+      });
+
+      const refreshResponse = await fetch("/api/recovery-engine");
+
+      if (refreshResponse.ok) {
+        const refreshed = await refreshResponse.json();
+        setRecoveryEngine(refreshed);
+      }
+    } finally {
+      setCompletingRecoveryAction(null);
+    }
+  }
 
   const runway = useMemo(
     () => getRunway(recovery, runwayData),
@@ -924,34 +980,56 @@ export default function DashboardPage() {
                   </p>
 
                   <div className="mt-4 space-y-3">
-                    {recoveryEngine.actions.slice(0, 3).map((action) => (
-                      <Link
-                        key={`${action.title}-${action.href}`}
-                        href={action.href}
-                        className="block rounded-2xl border border-[#deded8] p-4 transition hover:border-[#bdbdb5] hover:bg-[#fafaf7]"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <h3 className="font-semibold text-[#111]">
-                              {action.title}
-                            </h3>
-                            <p className="mt-1 text-sm leading-5 text-[#66665f]">
-                              {action.reason}
-                            </p>
+                    {recoveryEngine.actions.slice(0, 3).map((action) => {
+                      const actionKey = `${action.title}-${action.href}`;
+                      const isCompleting =
+                        completingRecoveryAction === actionKey;
 
-                            {action.evidence && (
-                              <p className="mt-2 text-xs font-medium text-[#888880]">
-                                Evidence: {action.evidence}
+                      return (
+                        <div
+                          key={actionKey}
+                          className="rounded-2xl border border-[#deded8] p-4 transition hover:border-[#bdbdb5] hover:bg-[#fafaf7]"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <Link
+                              href={action.href}
+                              className="min-w-0 flex-1"
+                            >
+                              <h3 className="font-semibold text-[#111]">
+                                {action.title}
+                              </h3>
+
+                              <p className="mt-1 text-sm leading-5 text-[#66665f]">
+                                {action.reason}
                               </p>
-                            )}
+
+                              {action.evidence && (
+                                <p className="mt-2 text-xs font-medium text-[#888880]">
+                                  Evidence: {action.evidence}
+                                </p>
+                              )}
+                            </Link>
+
+                            <span className="shrink-0 text-lg text-[#77776f]">
+                              →
+                            </span>
                           </div>
 
-                          <span className="shrink-0 text-lg text-[#77776f]">
-                            →
-                          </span>
+                          <div className="mt-4">
+                            <button
+                              type="button"
+                              onClick={() => completeRecoveryAction(action)}
+                              disabled={isCompleting}
+                              className="rounded-xl border border-[#d4d4ce] px-3 py-2 text-xs font-semibold text-[#111] transition hover:bg-[#f4f4ef] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {isCompleting
+                                ? "Marking complete..."
+                                : "Mark complete"}
+                            </button>
+                          </div>
                         </div>
-                      </Link>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>

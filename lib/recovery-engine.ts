@@ -66,6 +66,11 @@ export type RecoveryEngineInput = {
     nextAction?: string | null;
     linkedApplicationId?: string | null;
   }>;
+
+  completedActions?: Array<{
+    title?: string | null;
+    href?: string | null;
+  }>;
 };
 
 export type RecoveryEngineResult = {
@@ -726,7 +731,17 @@ function getActions(
     DIRECTION: 5,
   };
 
+  const completedActions = input.completedActions ?? [];
+
   return actions
+    .filter(
+      (action) =>
+        !completedActions.some(
+          (completed) =>
+            completed.title === action.title &&
+            completed.href === action.href
+        )
+    )
     .sort(
       (a, b) =>
         priorityOrder[a.priority] - priorityOrder[b.priority]
