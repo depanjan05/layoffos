@@ -106,6 +106,18 @@ export type PipelineSignal =
   | "ACTIVE"
   | "THIN";
 
+export type PipelineComposition = {
+  totalApplications: number;
+  activeApplications: number;
+  activeInterviews: number;
+  finalRounds: number;
+  offers: number;
+  applicationOffers: number;
+  interviewOffers: number;
+  acceptedOffers: number;
+  activeNetworkContacts: number;
+};
+
 export type RecoveryEngineResult = {
   state: RecoveryState;
   stateLabel: string;
@@ -116,6 +128,7 @@ export type RecoveryEngineResult = {
   transition: RecoveryTransition;
   recentProgression: RecentProgression | null;
   pipelineSignal: PipelineSignal;
+  pipelineComposition: PipelineComposition;
 };
 
 function normalize(value?: string | null) {
@@ -1067,6 +1080,82 @@ function getActions(
     }));
 }
 
+function getPipelineComposition(
+  input: RecoveryEngineInput
+): PipelineComposition {
+  const applications = input.applications ?? [];
+  const interviews = input.interviews ?? [];
+  const networkContacts = input.networkContacts ?? [];
+
+  // Match Dashboard application semantics:
+  // active excludes Rejected, Withdrawn, and Offer.
+  const activeApplications = applications.filter((item) => {
+    const stage = normalize(item.stage);
+
+    return (
+      stage !== "rejected" &&
+      stage !== "withdrawn" &&
+      stage !== "offer"
+    );
+  });
+
+  // Match Dashboard interview semantics:
+  // active excludes Rejected, Withdrawn, and Accepted.
+  const activeInterviews = interviews.filter((item) => {
+    const stage = normalize(item.stage);
+
+    return (
+      stage !== "rejected" &&
+      stage !== "withdrawn" &&
+      stage !== "accepted"
+    );
+  });
+
+  const applicationFinals = applications.filter(
+    (item) => normalize(item.stage) === "final"
+  ).length;
+
+  const interviewFinals = interviews.filter(
+    (item) => normalize(item.stage) === "final"
+  ).length;
+
+  const applicationOffers = applications.filter(
+    (item) => normalize(item.stage) === "offer"
+  ).length;
+
+  const interviewOffers = interviews.filter((item) => {
+    const stage = normalize(item.stage);
+
+    return stage === "offer" || stage === "accepted";
+  }).length;
+
+  const acceptedOffers = interviews.filter(
+    (item) => normalize(item.stage) === "accepted"
+  ).length;
+
+  const activeNetworkContacts = networkContacts.filter((item) => {
+    const status = normalize(item.status);
+
+    return (
+      status !== "inactive" &&
+      status !== "closed" &&
+      status !== "rejected"
+    );
+  }).length;
+
+  return {
+    totalApplications: applications.length,
+    activeApplications: activeApplications.length,
+    activeInterviews: activeInterviews.length,
+    finalRounds: applicationFinals + interviewFinals,
+    offers: applicationOffers + interviewOffers,
+    applicationOffers,
+    interviewOffers,
+    acceptedOffers,
+    activeNetworkContacts,
+  };
+}
+
 function getPipelineSignal(
   input: RecoveryEngineInput,
   recentProgression: RecentProgression | null,
@@ -1210,6 +1299,7 @@ export function calculateRecovery(
   const runwayMonths = calculateRunway(input);
   const recentProgression = getRecentProgression(input);
   const progressionSignal = getProgressionSignal(recentProgression);
+  const pipelineComposition = getPipelineComposition(input);
   const pipelineSignal = getPipelineSignal(
     input,
     recentProgression,
@@ -1238,5 +1328,6 @@ export function calculateRecovery(
     transition: getTransition(input, state),
     recentProgression,
     pipelineSignal,
+    pipelineComposition,
   };
 }
