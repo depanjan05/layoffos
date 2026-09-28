@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase/browser";
 
 type Task = {
   id: string;
@@ -28,7 +29,8 @@ const tasks: Task[] = [
     title: "Confirm your final payment",
     description:
       "Know what you are owed and when it is expected to arrive.",
-    action: "Write down final salary, unused leave, severance, bonuses, and payment dates.",
+    action:
+      "Write down final salary, unused leave, severance, bonuses, and payment dates.",
   },
   {
     id: "benefits",
@@ -52,7 +54,8 @@ const tasks: Task[] = [
     title: "Stop unnecessary spending",
     description:
       "Until you understand your runway, avoid adding new financial commitments.",
-    action: "Pause subscriptions, discretionary purchases, and non-essential expenses.",
+    action:
+      "Pause subscriptions, discretionary purchases, and non-essential expenses.",
   },
   {
     id: "support",
@@ -62,7 +65,6 @@ const tasks: Task[] = [
       "You do not need to announce the layoff publicly. Start with the people who can actually support you.",
     action: "Tell 2–3 trusted people what happened.",
   },
-
   {
     id: "resume",
     phase: "24–48 HOURS",
@@ -77,7 +79,8 @@ const tasks: Task[] = [
     title: "Update LinkedIn",
     description:
       "Make your current positioning clear so recruiters, hiring managers, and your network understand what you are looking for.",
-    action: "Update headline, About section, experience, and Open to Work settings if appropriate.",
+    action:
+      "Update headline, About section, experience, and Open to Work settings if appropriate.",
   },
   {
     id: "roles",
@@ -111,7 +114,6 @@ const tasks: Task[] = [
       "Do not rely on memory or browser tabs to remember applications.",
     action: "Open Job Search OS and create your first entries.",
   },
-
   {
     id: "applications",
     phase: "48–72 HOURS",
@@ -150,7 +152,8 @@ const tasks: Task[] = [
     title: "Set your weekly operating targets",
     description:
       "A job search becomes easier to manage when you measure controllable activity rather than obsessing over outcomes.",
-    action: "Set weekly targets for applications, outreach, conversations, and interviews.",
+    action:
+      "Set weekly targets for applications, outreach, conversations, and interviews.",
   },
   {
     id: "next-week",
@@ -158,22 +161,26 @@ const tasks: Task[] = [
     title: "Plan the next 7 days",
     description:
       "The first 72 hours are about getting control. The next week is about building momentum.",
-    action: "Block time for applications, networking, interviews, and recovery.",
+    action:
+      "Block time for applications, networking, interviews, and recovery.",
   },
 ];
 
 const phaseInfo = {
   "0–24 HOURS": {
     title: "Stabilize",
-    subtitle: "Protect your money, documents, benefits, and immediate options.",
+    subtitle:
+      "Protect your money, documents, benefits, and immediate options.",
   },
   "24–48 HOURS": {
     title: "Get organized",
-    subtitle: "Turn the uncertainty into a structured job-search system.",
+    subtitle:
+      "Turn the uncertainty into a structured job-search system.",
   },
   "48–72 HOURS": {
     title: "Start the engine",
-    subtitle: "Begin targeted applications, outreach, and conversations.",
+    subtitle:
+      "Begin targeted applications, outreach, and conversations.",
   },
 };
 
@@ -182,21 +189,84 @@ export default function First72HoursPage() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setCompleted(JSON.parse(saved));
+    async function loadProgress() {
+      let localCompleted: string[] = [];
+
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+
+        if (saved) {
+          localCompleted = JSON.parse(saved);
+          setCompleted(localCompleted);
+        }
+      } catch {
+        localCompleted = [];
+        setCompleted([]);
       }
-    } catch {
-      setCompleted([]);
-    } finally {
+
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData.user;
+
+      if (!user) {
+        setHydrated(true);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("recovery_tasks")
+        .select("title, completed")
+        .eq("user_id", user.id)
+        .eq("category", "first-72-hours");
+
+      if (!error && data && data.length > 0) {
+        const completedIds = Array.from(
+          new Set(
+            data
+              .filter((row) => row.completed)
+              .map((row) => row.title)
+              .filter((title) => tasks.some((task) => task.id === title))
+          )
+        );
+
+        if (completedIds.length > 0) {
+          setCompleted(completedIds);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(completedIds));
+        } else if (data.length > 0) {
+          setCompleted([]);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+        }
+      } else if (localCompleted.length > 0) {
+        const rows = localCompleted
+          .filter((id) => tasks.some((task) => task.id === id))
+          .map((id) => {
+            const task = tasks.find((item) => item.id === id)!;
+
+            return {
+              user_id: user.id,
+              category: "first-72-hours",
+              title: task.id,
+              description: task.description,
+              priority: "high",
+              completed: true,
+              completed_at: new Date().toISOString(),
+            };
+          });
+
+        if (rows.length > 0) {
+          await supabase.from("recovery_tasks").upsert(rows, {
+            onConflict: "id",
+          });
+        }
+      }
+
       setHydrated(true);
     }
+
+    loadProgress();
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
-
     localStorage.setItem(STORAGE_KEY, JSON.stringify(completed));
   }, [completed, hydrated]);
 
@@ -209,16 +279,72 @@ export default function First72HoursPage() {
     []
   );
 
-  function toggleTask(id: string) {
-    setCompleted((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id]
-    );
+  async function toggleTask(id: string) {
+    const isCurrentlyComplete = completed.includes(id);
+
+    const nextCompleted = isCurrentlyComplete
+      ? completed.filter((item) => item !== id)
+      : [...completed, id];
+
+    setCompleted(nextCompleted);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextCompleted));
+
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) return;
+
+    const task = tasks.find((item) => item.id === id);
+    if (!task) return;
+
+    if (isCurrentlyComplete) {
+      await supabase
+        .from("recovery_tasks")
+        .update({
+          completed: false,
+          completed_at: null,
+        })
+        .eq("user_id", user.id)
+        .eq("category", "first-72-hours")
+        .eq("title", task.id);
+
+      return;
+    }
+
+    await supabase
+      .from("recovery_tasks")
+      .upsert(
+        {
+          user_id: user.id,
+          category: "first-72-hours",
+          title: task.id,
+          description: task.description,
+          priority: "high",
+          completed: true,
+          completed_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "user_id,category,title",
+        }
+      );
   }
 
-  function resetProgress() {
+  async function resetProgress() {
     setCompleted([]);
+
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) return;
+
+    await supabase
+      .from("recovery_tasks")
+      .update({
+        completed: false,
+        completed_at: null,
+      })
+      .eq("user_id", user.id)
+      .eq("category", "first-72-hours");
   }
 
   return (
@@ -371,7 +497,9 @@ export default function First72HoursPage() {
 
                             <p
                               className={`mt-3 text-sm font-semibold ${
-                                isComplete ? "text-[#77776f]" : "text-[#111]"
+                                isComplete
+                                  ? "text-[#77776f]"
+                                  : "text-[#111]"
                               }`}
                             >
                               → {task.action}

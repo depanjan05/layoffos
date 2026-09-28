@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase/browser";
 
 type Stage =
   | "Applied"
@@ -93,189 +92,30 @@ export default function JobSearchPage() {
   const [form, setForm] = useState(emptyForm);
 
 useEffect(() => {
-    let cancelled = false;
+  const saved = localStorage.getItem(STORAGE_KEY);
 
-    async function loadApplications() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
 
-        if (user) {
-          const { data: remoteApplications, error } = await supabase
-            .from("applications")
-            .select(
-              "id, company, role, url, stage, date_applied, next_action, due_date, action_completed"
-            )
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false });
-
-          if (error) {
-            console.error(
-              "Could not load applications from Supabase:",
-              error
-            );
-          } else if (remoteApplications && remoteApplications.length > 0) {
-            const normalized = remoteApplications.map((app) =>
-              normalizeApplication({
-                id: app.id,
-                company: app.company,
-                role: app.role,
-                url: app.url || "",
-                stage: app.stage as Stage,
-                dateApplied: app.date_applied || todayString(),
-                nextAction: app.next_action || "",
-                dueDate: app.due_date || "",
-                actionCompleted: Boolean(app.action_completed),
-              })
-            );
-
-            if (!cancelled) {
-              setApplications(normalized);
-              localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify(normalized)
-              );
-              setHydrated(true);
-            }
-
-            return;
-          }
-
-          // Supabase is empty. Migrate existing localStorage data once.
-          const saved = localStorage.getItem(STORAGE_KEY);
-
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                const normalized = parsed.map(normalizeApplication);
-
-                const rows = normalized.map((app) => ({
-                  id: app.id,
-                  user_id: user.id,
-                  company: app.company,
-                  role: app.role,
-                  url: app.url || null,
-                  stage: app.stage,
-                  date_applied: app.dateApplied || null,
-                  next_action: app.nextAction || null,
-                  due_date: app.dueDate || null,
-                  action_completed: app.actionCompleted,
-                }));
-
-                const { error: migrationError } = await supabase
-                  .from("applications")
-                  .upsert(rows, { onConflict: "id" });
-
-                if (migrationError) {
-                  console.error(
-                    "Could not migrate applications to Supabase:",
-                    migrationError
-                  );
-                } else if (!cancelled) {
-                  setApplications(normalized);
-                  setHydrated(true);
-                  return;
-                }
-              }
-            } catch {
-              console.error("Could not parse local applications");
-            }
-          }
-        }
-
-        // Fallback to localStorage.
-        const saved = localStorage.getItem(STORAGE_KEY);
-
-        if (saved && !cancelled) {
-          try {
-            const parsed = JSON.parse(saved);
-
-            if (Array.isArray(parsed)) {
-              setApplications(parsed.map(normalizeApplication));
-            }
-          } catch {
-            console.error("Could not load applications");
-          }
-        }
-      } catch (error) {
-        console.error("Application sync failed:", error);
-
-        const saved = localStorage.getItem(STORAGE_KEY);
-
-        if (saved && !cancelled) {
-          try {
-            const parsed = JSON.parse(saved);
-
-            if (Array.isArray(parsed)) {
-              setApplications(parsed.map(normalizeApplication));
-            }
-          } catch {
-            console.error("Could not load applications fallback");
-          }
-        }
+      if (Array.isArray(parsed)) {
+        setApplications(parsed.map(normalizeApplication));
       }
-
-      if (!cancelled) {
-        setHydrated(true);
-      }
+    } catch {
+      console.error("Could not load applications");
     }
+  }
 
-    loadApplications();
+  setHydrated(true);
+}, []);
+useEffect(() => {
+  if (!hydrated) return;
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(applications)
-    );
-
-    async function syncApplications() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user || applications.length === 0) return;
-
-        const rows = applications.map((app) => ({
-          id: app.id,
-          user_id: user.id,
-          company: app.company,
-          role: app.role,
-          url: app.url || null,
-          stage: app.stage,
-          date_applied: app.dateApplied || null,
-          next_action: app.nextAction || null,
-          due_date: app.dueDate || null,
-          action_completed: app.actionCompleted,
-        }));
-
-        const { error } = await supabase
-          .from("applications")
-          .upsert(rows, { onConflict: "id" });
-
-        if (error) {
-          console.error(
-            "Could not sync applications to Supabase:",
-            error
-          );
-        }
-      } catch (error) {
-        console.error("Supabase application sync failed:", error);
-      }
-    }
-
-    syncApplications();
-  }, [applications, hydrated]);
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(applications)
+  );
+}, [applications, hydrated]);
 
 
   const metrics = useMemo(() => {
@@ -403,33 +243,10 @@ useEffect(() => {
     setShowForm(false);
   };
 
-  const deleteApplication = async (id: string) => {
+  const deleteApplication = (id: string) => {
     setApplications((current) =>
       current.filter((app) => app.id !== id)
     );
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      const { error } = await supabase
-        .from("applications")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id);
-
-      if (error) {
-        console.error(
-          "Could not delete application from Supabase:",
-          error
-        );
-      }
-    } catch (error) {
-      console.error("Supabase application delete failed:", error);
-    }
   };
 
   const markActionComplete = (id: string) => {

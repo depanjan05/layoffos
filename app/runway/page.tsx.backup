@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase/browser";
 
 const STORAGE_KEY = "layoffos-runway";
 
@@ -44,117 +43,30 @@ export default function RunwayPage() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
 
-    async function loadRunway() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+      if (saved) {
+        const parsed = JSON.parse(saved);
 
-        if (user) {
-          const { data: financialProfile, error } = await supabase
-            .from("financial_profiles")
-            .select(
-              "savings, severance, monthly_expenses, monthly_debt, other_income, benefits, upcoming_expenses"
-            )
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-          if (error) {
-            console.error("Could not load runway from Supabase:", error);
-          }
-
-          if (financialProfile && !cancelled) {
-            const nextData: RunwayData = {
-              savings: Number(financialProfile.savings) || 0,
-              severance: Number(financialProfile.severance) || 0,
-              monthlyExpenses:
-                Number(financialProfile.monthly_expenses) || 0,
-              monthlyDebt: Number(financialProfile.monthly_debt) || 0,
-              otherIncome: Number(financialProfile.other_income) || 0,
-              benefits: Number(financialProfile.benefits) || 0,
-              upcomingExpenses:
-                Number(financialProfile.upcoming_expenses) || 0,
-            };
-
-            setData(nextData);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(nextData));
-            setHydrated(true);
-            return;
-          }
+        if (parsed && typeof parsed === "object") {
+          setData({
+            ...defaultData,
+            ...parsed,
+          });
         }
-
-        const saved = localStorage.getItem(STORAGE_KEY);
-
-        if (saved && !cancelled) {
-          const parsed = JSON.parse(saved);
-
-          if (parsed && typeof parsed === "object") {
-            setData({
-              ...defaultData,
-              ...parsed,
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Could not load runway data:", error);
       }
-
-      if (!cancelled) {
-        setHydrated(true);
-      }
+    } catch {
+      console.error("Could not load runway data");
     }
 
-    loadRunway();
-
-    return () => {
-      cancelled = true;
-    };
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-
-    async function saveRunway() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          return;
-        }
-
-        const { error } = await supabase
-          .from("financial_profiles")
-          .upsert(
-            {
-              user_id: user.id,
-              savings: data.savings,
-              severance: data.severance,
-              monthly_expenses: data.monthlyExpenses,
-              monthly_debt: data.monthlyDebt,
-              other_income: data.otherIncome,
-              benefits: data.benefits,
-              upcoming_expenses: data.upcomingExpenses,
-            },
-            {
-              onConflict: "user_id",
-            }
-          );
-
-        if (error) {
-          console.error("Could not save runway to Supabase:", error);
-        }
-      } catch (error) {
-        console.error("Supabase runway sync failed:", error);
-      }
-    }
-
-    saveRunway();
   }, [data, hydrated]);
 
   const calculations = useMemo(() => {

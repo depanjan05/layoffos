@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase/browser";
 
 type RecoveryData = {
   laidOffWhen: string;
@@ -153,34 +154,155 @@ export default function PlanPage() {
   const [completed, setCompleted] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
+  function getWeekStart() {
+    const date = new Date();
+    const day = date.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    date.setDate(date.getDate() + diff);
+    return date.toISOString().slice(0, 10);
+  }
+
   useEffect(() => {
-    try {
-      const savedRecovery = localStorage.getItem(RECOVERY_KEY);
-      const savedPlan = localStorage.getItem(PLAN_KEY);
+    async function loadPlan() {
+      let localRecovery = defaultRecovery;
+      let localCompleted: string[] = [];
 
-      if (savedRecovery) {
-        setRecovery({
-          ...defaultRecovery,
-          ...JSON.parse(savedRecovery),
-        });
+      try {
+        const savedRecovery = localStorage.getItem(RECOVERY_KEY);
+        const savedPlan = localStorage.getItem(PLAN_KEY);
+
+        if (savedRecovery) {
+          localRecovery = {
+            ...defaultRecovery,
+            ...JSON.parse(savedRecovery),
+          };
+        }
+
+        if (savedPlan) {
+          localCompleted = JSON.parse(savedPlan);
+        }
+      } catch {
+        localRecovery = defaultRecovery;
+        localCompleted = [];
       }
 
-      if (savedPlan) {
-        setCompleted(JSON.parse(savedPlan));
+      setRecovery(localRecovery);
+      setCompleted(localCompleted);
+
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData.user;
+
+      if (!user) {
+        setHydrated(true);
+        return;
       }
-    } catch {
-      setRecovery(defaultRecovery);
-      setCompleted([]);
-    } finally {
+
+      // Load recovery profile from Supabase.
+      const [{ data: profile }, { data: financial }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select(
+            "recovery_timing,target_work_type,career_stage,primary_focus,employment_status"
+          )
+          .eq("id", user.id)
+          .maybeSingle(),
+
+        supabase
+          .from("financial_profiles")
+          .select(
+            "savings,monthly_expenses,severance,other_income"
+          )
+          .eq("user_id", user.id)
+          .maybeSingle(),
+      ]);
+
+      const dbRecovery: RecoveryData = {
+        laidOffWhen: profile?.recovery_timing ?? localRecovery.laidOffWhen,
+        savings: financial?.savings ?? localRecovery.savings,
+        monthlyExpenses:
+          financial?.monthly_expenses ?? localRecovery.monthlyExpenses,
+        severance: financial?.severance ?? localRecovery.severance,
+        otherIncome: financial?.other_income ?? localRecovery.otherIncome,
+        goal: profile?.target_work_type ?? localRecovery.goal,
+        stage: profile?.career_stage ?? localRecovery.stage,
+        focus: profile?.primary_focus ?? localRecovery.focus,
+      };
+
+      setRecovery(dbRecovery);
+      localStorage.setItem(RECOVERY_KEY, JSON.stringify(dbRecovery));
+
+      const weekStart = getWeekStart();
+
+      const { data: weeklyPlan } = await supabase
+        .from("weekly_plans")
+        .select("id, focus")
+        .eq("user_id", user.id)
+        .eq("week_start", weekStart)
+        .maybeSingle();
+
+      if (weeklyPlan) {
+        const { data: planTasks } = await supabase
+          .from("weekly_plan_tasks")
+          .select("title, completed")
+          .eq("weekly_plan_id", weeklyPlan.id);
+
+        if (planTasks) {
+          const completedTitles = new Set(
+            planTasks
+              .filter((task) => task.completed)
+              .map((task) => task.title)
+          );
+
+          const completedIds = baseTasks
+            .filter((task) => completedTitles.has(task.title))
+            .map((task) => task.id);
+
+          setCompleted(completedIds);
+          localStorage.setItem(
+            PLAN_KEY,
+            JSON.stringify(completedIds)
+          );
+        }
+      } else if (localCompleted.length > 0) {
+        // Migrate existing local weekly progress.
+        const { data: createdPlan } = await supabase
+          .from("weekly_plans")
+          .insert({
+            user_id: user.id,
+            week_start: weekStart,
+            focus: dbRecovery.focus || null,
+          })
+          .select("id")
+          .single();
+
+        if (createdPlan) {
+          const completedSet = new Set(localCompleted);
+
+          const rows = baseTasks.map((task) => ({
+            weekly_plan_id: createdPlan.id,
+            title: task.title,
+            category: task.category,
+            priority: "normal",
+            completed: completedSet.has(task.id),
+          }));
+
+          await supabase
+            .from("weekly_plan_tasks")
+            .insert(rows);
+        }
+      }
+
       setHydrated(true);
     }
+
+    loadPlan();
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
-
+    localStorage.setItem(RECOVERY_KEY, JSON.stringify(recovery));
     localStorage.setItem(PLAN_KEY, JSON.stringify(completed));
-  }, [completed, hydrated]);
+  }, [recovery, completed, hydrated]);
 
   const personalizedTasks = useMemo(() => {
     const tasks = [...baseTasks];
@@ -298,16 +420,102 @@ export default function PlanPage() {
     []
   );
 
-  function toggle(id: string) {
-    setCompleted((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id]
-    );
+  async function toggle(id: string) {
+    const isDone = completed.includes(id);
+
+    const nextCompleted = isDone
+      ? completed.filter((item) => item !== id)
+      : [...completed, id];
+
+    setCompleted(nextCompleted);
+    localStorage.setItem(PLAN_KEY, JSON.stringify(nextCompleted));
+
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) return;
+
+    const weekStart = getWeekStart();
+
+    let { data: weeklyPlan } = await supabase
+      .from("weekly_plans")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("week_start", weekStart)
+      .maybeSingle();
+
+    if (!weeklyPlan) {
+      const { data: createdPlan } = await supabase
+        .from("weekly_plans")
+        .insert({
+          user_id: user.id,
+          week_start: weekStart,
+          focus: recovery.focus || null,
+        })
+        .select("id")
+        .single();
+
+      weeklyPlan = createdPlan;
+    }
+
+    if (!weeklyPlan) return;
+
+    const task = personalizedTasks.find((item) => item.id === id);
+    if (!task) return;
+
+    const { data: existingTask } = await supabase
+      .from("weekly_plan_tasks")
+      .select("id")
+      .eq("weekly_plan_id", weeklyPlan.id)
+      .eq("title", task.title)
+      .maybeSingle();
+
+    if (existingTask?.id) {
+      await supabase
+        .from("weekly_plan_tasks")
+        .update({
+          completed: !isDone,
+        })
+        .eq("id", existingTask.id);
+    } else {
+      await supabase
+        .from("weekly_plan_tasks")
+        .insert({
+          weekly_plan_id: weeklyPlan.id,
+          title: task.title,
+          category: task.category,
+          priority: "normal",
+          completed: !isDone,
+        });
+    }
   }
 
-  function reset() {
+  async function reset() {
     setCompleted([]);
+    localStorage.setItem(PLAN_KEY, JSON.stringify([]));
+
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) return;
+
+    const weekStart = getWeekStart();
+
+    const { data: weeklyPlan } = await supabase
+      .from("weekly_plans")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("week_start", weekStart)
+      .maybeSingle();
+
+    if (!weeklyPlan) return;
+
+    await supabase
+      .from("weekly_plan_tasks")
+      .update({
+        completed: false,
+      })
+      .eq("weekly_plan_id", weeklyPlan.id);
   }
 
   if (!hydrated) {

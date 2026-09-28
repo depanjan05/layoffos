@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/browser";
 
 const steps = [
   {
     id: "timing",
     title: "When were you laid off?",
-    subtitle:
-      "This helps us understand where you are in the recovery process.",
+    subtitle: "This helps us understand where you are in the recovery process.",
     options: [
       ["week", "This week"],
       ["month", "1–4 weeks ago"],
@@ -64,7 +62,6 @@ const steps = [
 
 export default function StartPage() {
   const router = useRouter();
-
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [savings, setSavings] = useState("");
@@ -82,90 +79,26 @@ export default function StartPage() {
     }));
   };
 
-  const saveToSupabase = async (finalAnswers: Record<string, string>) => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        return;
-      }
-
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert(
-          {
-            id: user.id,
-            name:
-              typeof user.user_metadata?.name === "string"
-                ? user.user_metadata.name
-                : "",
-            recovery_timing: finalAnswers.timing || null,
-            target_work_type: finalAnswers.goal || null,
-            career_stage: finalAnswers.stage || null,
-            primary_focus: finalAnswers.focus || null,
-            employment_status: "laid-off",
-          },
-          {
-            onConflict: "id",
-          }
-        );
-
-      if (profileError) {
-        console.error("Failed to save profile:", profileError);
-      }
-
-      const { error: financialError } = await supabase
-        .from("financial_profiles")
-        .upsert(
-          {
-            user_id: user.id,
-            savings: Number(savings) || 0,
-            monthly_expenses: Number(expenses) || 0,
-            severance: Number(severance) || 0,
-            other_income: Number(otherIncome) || 0,
-          },
-          {
-            onConflict: "user_id",
-          }
-        );
-
-      if (financialError) {
-        console.error(
-          "Failed to save financial profile:",
-          financialError
-        );
-      }
-    } catch (error) {
-      console.error("Supabase onboarding sync failed:", error);
-    }
-  };
-
-  const next = async () => {
-    let nextAnswers = answers;
-
+  const next = () => {
     if (current.financial) {
-      nextAnswers = {
-        ...answers,
+      setAnswers((prev) => ({
+        ...prev,
         runway: JSON.stringify({
           savings: Number(savings) || 0,
           expenses: Number(expenses) || 0,
           severance: Number(severance) || 0,
           otherIncome: Number(otherIncome) || 0,
         }),
-      };
-
-      setAnswers(nextAnswers);
+      }));
     }
 
     if (step === steps.length - 1) {
       const finalAnswers = {
-        ...nextAnswers,
-        timing: nextAnswers.timing || "",
-        goal: nextAnswers.goal || "",
-        stage: nextAnswers.stage || "",
-        focus: nextAnswers.focus || "",
+        ...answers,
+        timing: answers.timing || "",
+        goal: answers.goal || "",
+        stage: answers.stage || "",
+        focus: answers.focus || "",
         runway: JSON.stringify({
           savings: Number(savings) || 0,
           expenses: Number(expenses) || 0,
@@ -178,8 +111,6 @@ export default function StartPage() {
         "layoffos-recovery",
         JSON.stringify(finalAnswers)
       );
-
-      await saveToSupabase(finalAnswers);
 
       router.push("/dashboard");
       return;
@@ -247,19 +178,16 @@ export default function StartPage() {
                   value={savings}
                   onChange={setSavings}
                 />
-
                 <MoneyInput
                   label="Monthly expenses"
                   value={expenses}
                   onChange={setExpenses}
                 />
-
                 <MoneyInput
                   label="Severance"
                   value={severance}
                   onChange={setSeverance}
                 />
-
                 <MoneyInput
                   label="Other monthly income"
                   value={otherIncome}

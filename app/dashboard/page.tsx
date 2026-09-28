@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase/browser";
 
 type RecoveryData = {
   laidOffWhen: string;
@@ -168,43 +169,258 @@ export default function DashboardPage() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    try {
-      const savedRecovery = localStorage.getItem(RECOVERY_KEY);
+    let cancelled = false;
 
-      if (savedRecovery) {
-        setRecovery({
-          ...defaultRecovery,
-          ...JSON.parse(savedRecovery),
-        });
+    async function loadDashboard() {
+      try {
+        const savedRecovery = localStorage.getItem(RECOVERY_KEY);
+
+        if (savedRecovery) {
+          setRecovery({
+            ...defaultRecovery,
+            ...JSON.parse(savedRecovery),
+          });
+        }
+
+        const savedRunway = localStorage.getItem(RUNWAY_KEY);
+
+        if (savedRunway) {
+          const parsedRunway = JSON.parse(savedRunway);
+
+          setRunwayData({
+            savings: Number(parsedRunway.savings) || 0,
+            severance: Number(parsedRunway.severance) || 0,
+            monthlyExpenses: Number(parsedRunway.monthlyExpenses) || 0,
+            monthlyDebt: Number(parsedRunway.monthlyDebt) || 0,
+            otherIncome: Number(parsedRunway.otherIncome) || 0,
+            benefits: Number(parsedRunway.benefits) || 0,
+            upcomingExpenses: Number(parsedRunway.upcomingExpenses) || 0,
+          });
+        }
+
+        const { data: userData } = await supabase.auth.getUser();
+        const user = userData.user;
+
+        if (!user) {
+          setApplications(parseArray<Application>(APPLICATIONS_KEY));
+          setCompanies(parseArray<Company>(COMPANIES_KEY));
+          setInterviews(parseArray<Interview>(INTERVIEWS_KEY));
+          setCompletedTasks(parseArray<string>(TASKS_KEY));
+          setCompleted72(
+            Array.from(new Set(parseArray<string>(HOURS_KEY)))
+          );
+          setCompletedPlan(
+            Array.from(new Set(parseArray<string>(PLAN_KEY)))
+          );
+          return;
+        }
+
+        const [
+          profileResult,
+          financialResult,
+          applicationsResult,
+          companiesResult,
+          interviewsResult,
+          tasks72Result,
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select(
+              "recovery_timing,target_work_type,career_stage,primary_focus"
+            )
+            .eq("id", user.id)
+            .maybeSingle(),
+
+          supabase
+            .from("financial_profiles")
+            .select(
+              "savings,severance,monthly_expenses,monthly_debt,other_income,benefits,upcoming_expenses"
+            )
+            .eq("user_id", user.id)
+            .maybeSingle(),
+
+          supabase
+            .from("applications")
+            .select("id,company,role,stage,next_action")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false }),
+
+          supabase
+            .from("companies")
+            .select("id,name,priority,status,next_action")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false }),
+
+          supabase
+            .from("interviews")
+            .select(
+              "id,company,role,stage,interview_date,follow_up_date,next_action"
+            )
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false }),
+
+          supabase
+            .from("recovery_tasks")
+            .select("title,completed")
+            .eq("user_id", user.id)
+            .eq("category", "first-72-hours"),
+        ]);
+
+        if (cancelled) return;
+
+        const profile = profileResult.data;
+        const financial = financialResult.data;
+
+        if (profile) {
+          setRecovery((current) => ({
+            ...current,
+            laidOffWhen: profile.recovery_timing ?? current.laidOffWhen,
+            goal: profile.target_work_type ?? current.goal,
+            stage: profile.career_stage ?? current.stage,
+            focus: profile.primary_focus ?? current.focus,
+          }));
+        }
+
+        if (financial) {
+          setRunwayData({
+            savings: Number(financial.savings) || 0,
+            severance: Number(financial.severance) || 0,
+            monthlyExpenses: Number(financial.monthly_expenses) || 0,
+            monthlyDebt: Number(financial.monthly_debt) || 0,
+            otherIncome: Number(financial.other_income) || 0,
+            benefits: Number(financial.benefits) || 0,
+            upcomingExpenses: Number(financial.upcoming_expenses) || 0,
+          });
+        }
+
+        if (!applicationsResult.error) {
+          setApplications(
+            (applicationsResult.data ?? []).map((item) => ({
+              id: item.id,
+              company: item.company,
+              role: item.role,
+              stage: item.stage,
+              nextAction: item.next_action ?? "",
+            }))
+          );
+        }
+
+        if (!companiesResult.error) {
+          setCompanies(
+            (companiesResult.data ?? []).map((item) => ({
+              id: item.id,
+              company: item.name,
+              priority: item.priority,
+              status: item.status,
+              nextAction: item.next_action ?? "",
+            }))
+          );
+        }
+
+        if (!interviewsResult.error) {
+          setInterviews(
+            (interviewsResult.data ?? []).map((item) => ({
+              id: item.id,
+              company: item.company,
+              role: item.role,
+              stage: item.stage,
+              interviewDate: item.interview_date ?? "",
+              followUpDate: item.follow_up_date ?? "",
+              nextAction: item.next_action ?? "",
+            }))
+          );
+        }
+
+        if (!tasks72Result.error) {
+          const completed = Array.from(
+            new Set(
+              (tasks72Result.data ?? [])
+                .filter((task) => task.completed)
+                .map((task) => task.title)
+            )
+          );
+
+          setCompleted72(completed);
+          localStorage.setItem(HOURS_KEY, JSON.stringify(completed));
+        }
+
+        /*
+         * Weekly plan is the source of truth for weekly progress.
+         * Do not infer this from the generic localStorage completion array.
+         */
+        const getWeekStart = () => {
+          const date = new Date();
+          const day = date.getDay();
+          const diff = day === 0 ? -6 : 1 - day;
+
+          date.setDate(date.getDate() + diff);
+          date.setHours(0, 0, 0, 0);
+
+          return date.toISOString().slice(0, 10);
+        };
+
+        const weekStart = getWeekStart();
+
+        const { data: weeklyPlan, error: weeklyPlanError } =
+          await supabase
+            .from("weekly_plans")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("week_start", weekStart)
+            .maybeSingle();
+
+        if (!weeklyPlanError && weeklyPlan) {
+          const { data: weeklyTasks, error: weeklyTasksError } =
+            await supabase
+              .from("weekly_plan_tasks")
+              .select("title,completed")
+              .eq("weekly_plan_id", weeklyPlan.id);
+
+          if (!weeklyTasksError) {
+            const completed = Array.from(
+              new Set(
+                (weeklyTasks ?? [])
+                  .filter((task) => task.completed)
+                  .map((task) => task.title)
+              )
+            );
+
+            setCompletedPlan(completed);
+            localStorage.setItem(
+              PLAN_KEY,
+              JSON.stringify(completed)
+            );
+          }
+        } else {
+          setCompletedPlan(
+            Array.from(new Set(parseArray<string>(PLAN_KEY)))
+          );
+        }
+      } catch (error) {
+        console.error("Dashboard Supabase load failed:", error);
+
+        setApplications(parseArray<Application>(APPLICATIONS_KEY));
+        setCompanies(parseArray<Company>(COMPANIES_KEY));
+        setInterviews(parseArray<Interview>(INTERVIEWS_KEY));
+        setCompletedTasks(parseArray<string>(TASKS_KEY));
+        setCompleted72(
+          Array.from(new Set(parseArray<string>(HOURS_KEY)))
+        );
+        setCompletedPlan(
+          Array.from(new Set(parseArray<string>(PLAN_KEY)))
+        );
+      } finally {
+        if (!cancelled) {
+          setHydrated(true);
+        }
       }
-
-      const savedRunway = localStorage.getItem(RUNWAY_KEY);
-
-      if (savedRunway) {
-        const parsedRunway = JSON.parse(savedRunway);
-
-        setRunwayData({
-          savings: Number(parsedRunway.savings) || 0,
-          severance: Number(parsedRunway.severance) || 0,
-          monthlyExpenses: Number(parsedRunway.monthlyExpenses) || 0,
-          monthlyDebt: Number(parsedRunway.monthlyDebt) || 0,
-          otherIncome: Number(parsedRunway.otherIncome) || 0,
-          benefits: Number(parsedRunway.benefits) || 0,
-          upcomingExpenses: Number(parsedRunway.upcomingExpenses) || 0,
-        });
-      }
-
-      setApplications(parseArray<Application>(APPLICATIONS_KEY));
-      setCompanies(parseArray<Company>(COMPANIES_KEY));
-      setInterviews(parseArray<Interview>(INTERVIEWS_KEY));
-      setCompletedTasks(parseArray<string>(TASKS_KEY));
-      setCompleted72(parseArray<string>(HOURS_KEY));
-      setCompletedPlan(parseArray<string>(PLAN_KEY));
-    } catch {
-      // Keep defaults if localStorage contains malformed data.
-    } finally {
-      setHydrated(true);
     }
+
+    loadDashboard();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const runway = useMemo(
@@ -294,11 +510,11 @@ export default function DashboardPage() {
   }, [companies]);
 
   const first72Progress = Math.round(
-    (completed72.length / 18) * 100
+    (new Set(completed72).size / 18) * 100
   );
 
   const weeklyProgress = Math.round(
-    (completedPlan.length / 12) * 100
+    (new Set(completedPlan).size / 12) * 100
   );
 
   const dashboardTasks = useMemo(() => {
@@ -314,7 +530,7 @@ export default function DashboardPage() {
       items.push({
         id: "72-hours",
         title: "Finish your First 72 Hours checklist",
-        description: `${completed72.length}/18 immediate recovery actions complete.`,
+        description: `${new Set(completed72).size}/18 immediate recovery actions complete.`,
         href: "/first-72-hours",
         priority: "HIGH",
       });
@@ -378,7 +594,7 @@ export default function DashboardPage() {
       items.push({
         id: "plan",
         title: "Execute this week's recovery plan",
-        description: `${completedPlan.length}/12 weekly actions complete.`,
+        description: `${new Set(completedPlan).size}/12 weekly actions complete.`,
         href: "/plan",
         priority: "MEDIUM",
       });
@@ -711,7 +927,7 @@ export default function DashboardPage() {
               href="/first-72-hours"
               title="First 72 Hours"
               description="Handle the immediate aftermath without trying to solve everything at once."
-              metric={`${completed72.length}/18 done`}
+              metric={`${new Set(completed72).size}/18 done`}
             />
           </div>
         </section>

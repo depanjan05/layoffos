@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase/browser";
 
 type ContactStatus =
   | "Not contacted"
@@ -86,45 +87,225 @@ export default function NetworkingPage() {
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
-    const savedContacts =
-      localStorage.getItem(CONTACTS_KEY);
+    let cancelled = false;
 
-    const savedApplications =
-      localStorage.getItem(APPLICATIONS_KEY);
-
-    if (savedContacts) {
+    async function loadData() {
       try {
-        const parsed = JSON.parse(savedContacts);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-        if (Array.isArray(parsed)) {
-          setContacts(
-            parsed.map(normalizeContact)
-          );
+        if (user) {
+          const [contactsResult, applicationsResult] =
+            await Promise.all([
+              supabase
+                .from("network_contacts")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("created_at", { ascending: false }),
+
+              supabase
+                .from("applications")
+                .select("id, company, role, stage")
+                .eq("user_id", user.id)
+                .order("created_at", { ascending: false }),
+            ]);
+
+          if (!applicationsResult.error && applicationsResult.data) {
+            if (!cancelled) {
+              setApplications(applicationsResult.data);
+            }
+          } else {
+            const savedApplications =
+              localStorage.getItem(APPLICATIONS_KEY);
+
+            if (savedApplications) {
+              try {
+                const parsed = JSON.parse(savedApplications);
+
+                if (Array.isArray(parsed) && !cancelled) {
+                  setApplications(parsed);
+                }
+              } catch {
+                console.error("Could not load applications");
+              }
+            }
+          }
+
+          if (!contactsResult.error && contactsResult.data) {
+            if (contactsResult.data.length > 0) {
+              if (!cancelled) {
+                setContacts(
+                  contactsResult.data.map((contact) =>
+                    normalizeContact({
+                      id: contact.id,
+                      name: contact.name,
+                      company: contact.company,
+                      role: contact.role,
+                      linkedin: contact.linkedin_url,
+                      status: contact.status,
+                      lastContact: contact.last_contacted,
+                      nextAction: contact.next_action,
+                      dueDate: contact.due_date,
+                      linkedApplicationId:
+                        contact.linked_application_id,
+                    })
+                  )
+                );
+              }
+
+              setHydrated(true);
+              return;
+            }
+
+            // First authenticated load: migrate existing local data.
+            const savedContacts =
+              localStorage.getItem(CONTACTS_KEY);
+
+            if (savedContacts) {
+              try {
+                const parsed = JSON.parse(savedContacts);
+
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  const rows = parsed.map((contact) => {
+                    const normalized = normalizeContact(contact);
+
+                    return {
+                      id: normalized.id,
+                      user_id: user.id,
+                      name: normalized.name,
+                      company: normalized.company,
+                      role: normalized.role,
+                      relationship: normalized.role || null,
+                      linkedin_url: normalized.linkedin || null,
+                      status: normalized.status,
+                      last_contacted:
+                        normalized.lastContact || null,
+                      next_action:
+                        normalized.nextAction || null,
+                      due_date:
+                        normalized.dueDate || null,
+                      linked_application_id:
+                        normalized.linkedApplicationId || null,
+                      notes: "",
+                    };
+                  });
+
+                  const { data: migrated, error: migrationError } =
+                    await supabase
+                      .from("network_contacts")
+                      .upsert(rows, { onConflict: "id" })
+                      .select();
+
+                  if (!migrationError && migrated) {
+                    if (!cancelled) {
+                      setContacts(
+                        migrated.map((contact) =>
+                          normalizeContact({
+                            id: contact.id,
+                            name: contact.name,
+                            company: contact.company,
+                            role: contact.role,
+                            linkedin: contact.linkedin_url,
+                            status: contact.status,
+                            lastContact:
+                              contact.last_contacted,
+                            nextAction:
+                              contact.next_action,
+                            dueDate: contact.due_date,
+                            linkedApplicationId:
+                              contact.linked_application_id,
+                          })
+                        )
+                      );
+                    }
+
+                    setHydrated(true);
+                    return;
+                  }
+
+                  if (migrationError) {
+                    console.error(
+                      "Could not migrate networking data",
+                      migrationError
+                    );
+                  }
+                }
+              } catch {
+                console.error(
+                  "Could not parse networking localStorage"
+                );
+              }
+            }
+
+            if (!cancelled) {
+              setContacts([]);
+            }
+
+            setHydrated(true);
+            return;
+          }
+        } else {
+          // Unauthenticated fallback
+          const savedContacts =
+            localStorage.getItem(CONTACTS_KEY);
+
+          const savedApplications =
+            localStorage.getItem(APPLICATIONS_KEY);
+
+          if (savedContacts) {
+            try {
+              const parsed = JSON.parse(savedContacts);
+
+              if (Array.isArray(parsed) && !cancelled) {
+                setContacts(parsed.map(normalizeContact));
+              }
+            } catch {
+              console.error("Could not load networking data");
+            }
+          }
+
+          if (savedApplications) {
+            try {
+              const parsed = JSON.parse(savedApplications);
+
+              if (Array.isArray(parsed) && !cancelled) {
+                setApplications(parsed);
+              }
+            } catch {
+              console.error("Could not load applications");
+            }
+          }
         }
-      } catch {
-        console.error(
-          "Could not load networking data"
-        );
+      } catch (error) {
+        console.error("Could not load networking data", error);
+
+        const savedContacts =
+          localStorage.getItem(CONTACTS_KEY);
+
+        if (savedContacts) {
+          try {
+            const parsed = JSON.parse(savedContacts);
+
+            if (Array.isArray(parsed) && !cancelled) {
+              setContacts(parsed.map(normalizeContact));
+            }
+          } catch {
+            console.error("Could not load networking fallback");
+          }
+        }
+      }
+
+      if (!cancelled) {
+        setHydrated(true);
       }
     }
 
-    if (savedApplications) {
-      try {
-        const parsed = JSON.parse(
-          savedApplications
-        );
+    loadData();
 
-        if (Array.isArray(parsed)) {
-          setApplications(parsed);
-        }
-      } catch {
-        console.error(
-          "Could not load applications"
-        );
-      }
-    }
-
-    setHydrated(true);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -195,7 +376,7 @@ export default function NetworkingPage() {
       }));
   }, [contacts]);
 
-  const addContact = () => {
+  const addContact = async () => {
     if (!form.name.trim()) return;
 
     const newContact: Contact = {
@@ -208,14 +389,46 @@ export default function NetworkingPage() {
       lastContact: form.lastContact,
       nextAction: form.nextAction.trim(),
       dueDate: form.dueDate,
-      linkedApplicationId:
-        form.linkedApplicationId,
+      linkedApplicationId: form.linkedApplicationId,
     };
 
-    setContacts((current) => [
-      newContact,
-      ...current,
-    ]);
+    setContacts((current) => [newContact, ...current]);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { error } = await supabase
+          .from("network_contacts")
+          .insert({
+            id: newContact.id,
+            user_id: user.id,
+            name: newContact.name,
+            company: newContact.company,
+            role: newContact.role,
+            relationship: newContact.role || null,
+            linkedin_url: newContact.linkedin || null,
+            status: newContact.status,
+            last_contacted:
+              newContact.lastContact || null,
+            next_action:
+              newContact.nextAction || null,
+            due_date:
+              newContact.dueDate || null,
+            linked_application_id:
+              newContact.linkedApplicationId || null,
+            notes: "",
+          });
+
+        if (error) {
+          console.error("Could not save contact", error);
+        }
+      }
+    } catch (error) {
+      console.error("Could not save contact", error);
+    }
 
     setForm({
       ...emptyForm,
@@ -225,7 +438,7 @@ export default function NetworkingPage() {
     setShowForm(false);
   };
 
-  const updateContact = (
+  const updateContact = async (
     id: string,
     updates: Partial<Contact>
   ) => {
@@ -236,14 +449,84 @@ export default function NetworkingPage() {
           : contact
       )
     );
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const dbUpdates: Record<string, unknown> = {};
+
+      if ("name" in updates) dbUpdates.name = updates.name;
+      if ("company" in updates) dbUpdates.company = updates.company;
+      if ("role" in updates) {
+        dbUpdates.role = updates.role;
+        dbUpdates.relationship = updates.role || null;
+      }
+      if ("linkedin" in updates) {
+        dbUpdates.linkedin_url =
+          updates.linkedin || null;
+      }
+      if ("status" in updates) dbUpdates.status = updates.status;
+      if ("lastContact" in updates) {
+        dbUpdates.last_contacted =
+          updates.lastContact || null;
+      }
+      if ("nextAction" in updates) {
+        dbUpdates.next_action =
+          updates.nextAction || null;
+      }
+      if ("dueDate" in updates) {
+        dbUpdates.due_date =
+          updates.dueDate || null;
+      }
+      if ("linkedApplicationId" in updates) {
+        dbUpdates.linked_application_id =
+          updates.linkedApplicationId || null;
+      }
+
+      if (Object.keys(dbUpdates).length > 0) {
+        const { error } = await supabase
+          .from("network_contacts")
+          .update(dbUpdates)
+          .eq("id", id)
+          .eq("user_id", user.id);
+
+        if (error) {
+          console.error("Could not update contact", error);
+        }
+      }
+    } catch (error) {
+      console.error("Could not update contact", error);
+    }
   };
 
-  const deleteContact = (id: string) => {
+  const deleteContact = async (id: string) => {
     setContacts((current) =>
-      current.filter(
-        (contact) => contact.id !== id
-      )
+      current.filter((contact) => contact.id !== id)
     );
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { error } = await supabase
+        .from("network_contacts")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Could not delete contact", error);
+      }
+    } catch (error) {
+      console.error("Could not delete contact", error);
+    }
   };
 
   return (

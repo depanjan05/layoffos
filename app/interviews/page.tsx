@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase/browser";
 
 type Stage =
   | "Recruiter Screen"
@@ -111,24 +112,187 @@ export default function InterviewsPage() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+    let cancelled = false;
 
-      if (saved) {
-        setInterviews(JSON.parse(saved));
+    const loadInterviews = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          const saved = localStorage.getItem(STORAGE_KEY);
+
+          if (saved) {
+            try {
+              if (!cancelled) {
+                setInterviews(JSON.parse(saved));
+              }
+            } catch {
+              if (!cancelled) {
+                setInterviews([]);
+              }
+            }
+          }
+
+          if (!cancelled) {
+            setHydrated(true);
+          }
+
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("interviews")
+          .select(
+            "id, company, role, stage, interview_date, interviewer, next_action, follow_up_date, compensation, decision_date, notes"
+          )
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error(
+            "Could not load interviews from Supabase",
+            error
+          );
+
+          const saved = localStorage.getItem(STORAGE_KEY);
+
+          if (saved) {
+            try {
+              if (!cancelled) {
+                setInterviews(JSON.parse(saved));
+              }
+            } catch {
+              if (!cancelled) {
+                setInterviews([]);
+              }
+            }
+          }
+
+          if (!cancelled) {
+            setHydrated(true);
+          }
+
+          return;
+        }
+
+        if (data && data.length > 0) {
+          const mapped: Interview[] = data.map((item) => ({
+            id: item.id,
+            company: item.company ?? "",
+            role: item.role ?? "",
+            stage: item.stage as Stage,
+            interviewDate: item.interview_date ?? "",
+            interviewer: item.interviewer ?? "",
+            nextAction: item.next_action ?? "",
+            followUpDate: item.follow_up_date ?? "",
+            compensation: item.compensation ?? "",
+            decisionDate: item.decision_date ?? "",
+            notes: item.notes ?? "",
+          }));
+
+          if (!cancelled) {
+            setInterviews(mapped);
+          }
+        } else {
+          const saved = localStorage.getItem(STORAGE_KEY);
+
+          if (saved) {
+            try {
+              const localInterviews = JSON.parse(saved);
+
+              if (!cancelled && Array.isArray(localInterviews)) {
+                setInterviews(localInterviews);
+              }
+
+              if (
+                Array.isArray(localInterviews) &&
+                localInterviews.length > 0
+              ) {
+                const rows = localInterviews.map(
+                  (item: Interview) => ({
+                    id: item.id,
+                    user_id: user.id,
+                    company: item.company || "",
+                    role: item.role || "",
+                    stage: item.stage,
+                    interview_date:
+                      item.interviewDate || null,
+                    interviewer:
+                      item.interviewer || null,
+                    next_action:
+                      item.nextAction || null,
+                    follow_up_date:
+                      item.followUpDate || null,
+                    compensation:
+                      item.compensation || null,
+                    decision_date:
+                      item.decisionDate || null,
+                    notes: item.notes || null,
+                  })
+                );
+
+                const { error: migrationError } =
+                  await supabase
+                    .from("interviews")
+                    .upsert(rows, {
+                      onConflict: "id",
+                    });
+
+                if (migrationError) {
+                  console.error(
+                    "Could not migrate interviews to Supabase",
+                    migrationError
+                  );
+                }
+              }
+            } catch {
+              if (!cancelled) {
+                setInterviews([]);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Could not load interviews", error);
+
+        const saved = localStorage.getItem(STORAGE_KEY);
+
+        if (saved) {
+          try {
+            if (!cancelled) {
+              setInterviews(JSON.parse(saved));
+            }
+          } catch {
+            if (!cancelled) {
+              setInterviews([]);
+            }
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setHydrated(true);
+        }
       }
-    } catch {
-      setInterviews([]);
-    } finally {
-      setHydrated(true);
-    }
+    };
+
+    loadInterviews();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(interviews));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(interviews)
+    );
   }, [interviews, hydrated]);
+
 
   const stats = useMemo(() => {
     const active = interviews.filter(
@@ -185,7 +349,7 @@ export default function InterviewsPage() {
     }));
   }
 
-  function saveInterview() {
+  async function saveInterview() {
     if (!form.company.trim() || !form.role.trim()) return;
 
     if (editingId) {
@@ -199,14 +363,102 @@ export default function InterviewsPage() {
             : item
         )
       );
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          const { error } = await supabase
+            .from("interviews")
+            .update({
+              company: form.company,
+              role: form.role,
+              stage: form.stage,
+              interview_date:
+                form.interviewDate || null,
+              interviewer:
+                form.interviewer || null,
+              next_action:
+                form.nextAction || null,
+              follow_up_date:
+                form.followUpDate || null,
+              compensation:
+                form.compensation || null,
+              decision_date:
+                form.decisionDate || null,
+              notes: form.notes || null,
+            })
+            .eq("id", editingId)
+            .eq("user_id", user.id);
+
+          if (error) {
+            console.error(
+              "Could not update interview",
+              error
+            );
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Could not update interview",
+          error
+        );
+      }
     } else {
+      const interview: Interview = {
+        ...form,
+        id: crypto.randomUUID(),
+      };
+
       setInterviews((current) => [
-        {
-          ...form,
-          id: crypto.randomUUID(),
-        },
+        interview,
         ...current,
       ]);
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          const { error } = await supabase
+            .from("interviews")
+            .insert({
+              id: interview.id,
+              user_id: user.id,
+              company: interview.company,
+              role: interview.role,
+              stage: interview.stage,
+              interview_date:
+                interview.interviewDate || null,
+              interviewer:
+                interview.interviewer || null,
+              next_action:
+                interview.nextAction || null,
+              follow_up_date:
+                interview.followUpDate || null,
+              compensation:
+                interview.compensation || null,
+              decision_date:
+                interview.decisionDate || null,
+              notes: interview.notes || null,
+            });
+
+          if (error) {
+            console.error(
+              "Could not save interview",
+              error
+            );
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Could not save interview",
+          error
+        );
+      }
     }
 
     setForm(defaultForm);
@@ -232,11 +484,42 @@ export default function InterviewsPage() {
     setShowForm(true);
   }
 
-  function deleteInterview(id: string) {
-    setInterviews((current) => current.filter((item) => item.id !== id));
+  async function deleteInterview(id: string) {
+    setInterviews((current) =>
+      current.filter((item) => item.id !== id)
+    );
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { error } = await supabase
+        .from("interviews")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error(
+          "Could not delete interview",
+          error
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Could not delete interview",
+        error
+      );
+    }
   }
 
-  function updateStage(id: string, stage: Stage) {
+  async function updateStage(
+    id: string,
+    stage: Stage
+  ) {
     setInterviews((current) =>
       current.map((item) =>
         item.id === id
@@ -247,6 +530,32 @@ export default function InterviewsPage() {
           : item
       )
     );
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { error } = await supabase
+        .from("interviews")
+        .update({ stage })
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error(
+          "Could not update interview stage",
+          error
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Could not update interview stage",
+        error
+      );
+    }
   }
 
   function cancelForm() {

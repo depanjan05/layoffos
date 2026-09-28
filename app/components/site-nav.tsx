@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/browser";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -16,12 +17,17 @@ const navItems = [
 
 export default function SiteNav() {
   const pathname = usePathname();
+  const router = useRouter();
 
-  if (pathname === "/") {
-    return null;
-  }
+  if (pathname === "/") return null;
 
   const isStart = pathname === "/start";
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/auth");
+    router.refresh();
+  }
 
   return (
     <div className="site-nav">
@@ -51,12 +57,33 @@ export default function SiteNav() {
           </nav>
         )}
 
-        <a
-          href={isStart ? "/dashboard" : "/start"}
-          className="site-nav-cta"
-        >
-          {isStart ? "Back to dashboard →" : "My recovery →"}
-        </a>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <a
+            href={isStart ? "/dashboard" : "/start"}
+            className="site-nav-cta"
+          >
+            {isStart ? "Back to dashboard →" : "My recovery →"}
+          </a>
+
+          {!isStart && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                border: "1px solid #ddd",
+                background: "#fff",
+                color: "#111",
+                borderRadius: "999px",
+                padding: "9px 14px",
+                cursor: "pointer",
+                fontSize: "14px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Log out
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

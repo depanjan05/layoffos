@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase/browser";
 
 type Priority = "High" | "Medium" | "Low";
 
@@ -61,27 +62,158 @@ export default function CompaniesPage() {
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+    let cancelled = false;
 
-      if (saved) {
-        const parsed = JSON.parse(saved);
+    async function loadCompanies() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-        if (Array.isArray(parsed)) {
-          setCompanies(parsed);
+        if (user) {
+          const { data, error } = await supabase
+            .from("companies")
+            .select("*")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false });
+
+          if (!error && data && data.length > 0) {
+            if (!cancelled) {
+              setCompanies(
+                data.map((company) => ({
+                  id: company.id,
+                  name: company.name || "",
+                  website: company.website || "",
+                  role: company.role || "",
+                  location: company.location || "",
+                  priority: company.priority || "High",
+                  status: company.status || "Target",
+                  contact: company.contact || "",
+                  nextAction: company.next_action || "",
+                  dueDate: company.due_date || "",
+                  notes: company.notes || "",
+                }))
+              );
+              setHydrated(true);
+            }
+            return;
+          }
+
+          // No Supabase rows yet: migrate legacy localStorage data.
+          const saved = localStorage.getItem(STORAGE_KEY);
+
+          if (saved) {
+            const parsed = JSON.parse(saved);
+
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const rows = parsed.map((company) => ({
+                id: company.id || crypto.randomUUID(),
+                user_id: user.id,
+                name: company.name || "",
+                website: company.website || "",
+                role: company.role || "",
+                location: company.location || "",
+                priority: company.priority || "High",
+                status: company.status || "Target",
+                contact: company.contact || "",
+                next_action: company.nextAction || "",
+                due_date: company.dueDate || null,
+                notes: company.notes || "",
+              }));
+
+              const { data: migrated, error: migrationError } =
+                await supabase
+                  .from("companies")
+                  .upsert(rows, { onConflict: "id" })
+                  .select();
+
+              if (!migrationError && migrated) {
+                if (!cancelled) {
+                  setCompanies(
+                    migrated.map((company) => ({
+                      id: company.id,
+                      name: company.name || "",
+                      website: company.website || "",
+                      role: company.role || "",
+                      location: company.location || "",
+                      priority: company.priority || "High",
+                      status: company.status || "Target",
+                      contact: company.contact || "",
+                      nextAction: company.next_action || "",
+                      dueDate: company.due_date || "",
+                      notes: company.notes || "",
+                    }))
+                  );
+                }
+
+                setHydrated(true);
+                return;
+              }
+
+              if (migrationError) {
+                console.error(
+                  "Could not migrate Companies to Supabase:",
+                  migrationError
+                );
+              }
+            }
+          }
+
+          if (!cancelled) {
+            setCompanies([]);
+          }
+
+          setHydrated(true);
+          return;
+        }
+
+        // Unauthenticated fallback.
+        const saved = localStorage.getItem(STORAGE_KEY);
+
+        if (saved) {
+          const parsed = JSON.parse(saved);
+
+          if (Array.isArray(parsed) && !cancelled) {
+            setCompanies(parsed);
+          }
+        }
+      } catch (error) {
+        console.error("Could not load companies:", error);
+
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+
+          if (saved) {
+            const parsed = JSON.parse(saved);
+
+            if (Array.isArray(parsed) && !cancelled) {
+              setCompanies(parsed);
+            }
+          }
+        } catch {
+          console.error("Could not load companies from localStorage.");
         }
       }
-    } catch {
-      console.error("Could not load companies");
+
+      if (!cancelled) {
+        setHydrated(true);
+      }
     }
 
-    setHydrated(true);
+    loadCompanies();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(companies));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(companies)
+    );
   }, [companies, hydrated]);
 
   const stats = useMemo(() => {
@@ -103,7 +235,6 @@ export default function CompaniesPage() {
 
   function startEditing(company: Company) {
     const { id, ...companyData } = company;
-
     setEditingId(id);
     setForm(companyData);
     setShowForm(true);
@@ -120,20 +251,50 @@ export default function CompaniesPage() {
     setShowForm(false);
   }
 
-  function saveCompany() {
+  async function saveCompany() {
     if (!form.name.trim() || !form.role.trim()) return;
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (editingId) {
+      const updatedCompany: Company = {
+        id: editingId,
+        ...form,
+      };
+
       setCompanies((current) =>
         current.map((company) =>
-          company.id === editingId
-            ? {
-                ...company,
-                ...form,
-              }
-            : company
+          company.id === editingId ? updatedCompany : company
         )
       );
+
+      if (user) {
+        const { error } = await supabase
+          .from("companies")
+          .update({
+            name: form.name,
+            website: form.website,
+            role: form.role,
+            location: form.location,
+            priority: form.priority,
+            status: form.status,
+            contact: form.contact,
+            next_action: form.nextAction,
+            due_date: form.dueDate || null,
+            notes: form.notes,
+          })
+          .eq("id", editingId)
+          .eq("user_id", user.id);
+
+        if (error) {
+          console.error(
+            "Could not update company in Supabase:",
+            error
+          );
+        }
+      }
     } else {
       const company: Company = {
         id: crypto.randomUUID(),
@@ -141,12 +302,38 @@ export default function CompaniesPage() {
       };
 
       setCompanies((current) => [company, ...current]);
+
+      if (user) {
+        const { error } = await supabase
+          .from("companies")
+          .insert({
+            id: company.id,
+            user_id: user.id,
+            name: company.name,
+            website: company.website,
+            role: company.role,
+            location: company.location,
+            priority: company.priority,
+            status: company.status,
+            contact: company.contact,
+            next_action: company.nextAction,
+            due_date: company.dueDate || null,
+            notes: company.notes,
+          });
+
+        if (error) {
+          console.error(
+            "Could not create company in Supabase:",
+            error
+          );
+        }
+      }
     }
 
     cancelForm();
   }
 
-  function updateCompany(
+  async function updateCompany(
     id: string,
     field: keyof Company,
     value: string
@@ -158,12 +345,73 @@ export default function CompaniesPage() {
           : company
       )
     );
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const fieldMap: Partial<Record<keyof Company, string>> = {
+      name: "name",
+      website: "website",
+      role: "role",
+      location: "location",
+      priority: "priority",
+      status: "status",
+      contact: "contact",
+      nextAction: "next_action",
+      dueDate: "due_date",
+      notes: "notes",
+    };
+
+    const dbField = fieldMap[field];
+
+    if (!dbField) return;
+
+    const { error } = await supabase
+      .from("companies")
+      .update({
+        [dbField]: value || (dbField === "due_date" ? null : ""),
+      })
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error(
+        "Could not update company in Supabase:",
+        error
+      );
+    }
   }
 
-  function deleteCompany(id: string) {
+  async function deleteCompany(id: string) {
     setCompanies((current) =>
       current.filter((company) => company.id !== id)
     );
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { error } = await supabase
+        .from("companies")
+        .delete()
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error(
+          "Could not delete company from Supabase:",
+          error
+        );
+      }
+    } catch (error) {
+      console.error("Supabase company delete failed:", error);
+    }
   }
 
   return (
