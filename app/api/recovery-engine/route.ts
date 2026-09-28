@@ -26,6 +26,7 @@ export async function GET() {
     companiesResult,
     networkingResult,
     completedActionsResult,
+    progressionEventsResult,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -73,6 +74,17 @@ export async function GET() {
       .eq("user_id", user.id)
       .eq("event_type", "recovery_action_completed")
       .eq("entity_type", "recovery_action"),
+
+    supabase
+      .from("events")
+      .select("event_type, entity_type, metadata")
+      .eq("user_id", user.id)
+      .in("entity_type", [
+        "application_progression",
+        "interview_progression",
+      ])
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
   const result = calculateRecovery({
@@ -138,6 +150,19 @@ export async function GET() {
         };
       })
       .filter((action) => action.title && action.href),
+
+    progressionEvents: (progressionEventsResult.data ?? []).map(
+      (event) => ({
+        eventType: event.event_type,
+        entityType: event.entity_type,
+        metadata:
+          event.metadata &&
+          typeof event.metadata === "object" &&
+          !Array.isArray(event.metadata)
+            ? (event.metadata as Record<string, unknown>)
+            : null,
+      })
+    ),
   });
 
   return NextResponse.json(result);

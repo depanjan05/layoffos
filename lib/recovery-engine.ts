@@ -77,6 +77,20 @@ export type RecoveryEngineInput = {
     title?: string | null;
     href?: string | null;
   }>;
+
+  progressionEvents?: Array<{
+    eventType?: string | null;
+    entityType?: string | null;
+    metadata?: Record<string, unknown> | null;
+  }>;
+};
+
+export type RecentProgression = {
+  type: "application" | "interview";
+  company: string;
+  role: string;
+  previousStage: string;
+  newStage: string;
 };
 
 export type RecoveryEngineResult = {
@@ -87,6 +101,7 @@ export type RecoveryEngineResult = {
   priorities: RecoveryPriority[];
   actions: RecoveryAction[];
   transition: RecoveryTransition;
+  recentProgression: RecentProgression | null;
 };
 
 function normalize(value?: string | null) {
@@ -893,6 +908,52 @@ function getActions(
     }));
 }
 
+function getRecentProgression(
+  input: RecoveryEngineInput
+): RecentProgression | null {
+  const events = input.progressionEvents ?? [];
+
+  for (const event of events) {
+    if (
+      event.eventType !== "application_progression" &&
+      event.eventType !== "interview_progression"
+    ) {
+      continue;
+    }
+
+    const metadata = event.metadata;
+
+    if (!metadata) continue;
+
+    const company = metadata.company;
+    const role = metadata.role;
+    const previousStage = metadata.previousStage;
+    const newStage = metadata.newStage;
+
+    if (
+      typeof company !== "string" ||
+      typeof role !== "string" ||
+      typeof previousStage !== "string" ||
+      typeof newStage !== "string"
+    ) {
+      continue;
+    }
+
+    return {
+      type:
+        event.eventType === "application_progression"
+          ? "application"
+          : "interview",
+      company,
+      role,
+      previousStage,
+      newStage,
+    };
+  }
+
+  return null;
+}
+
 export function calculateRecovery(
   input: RecoveryEngineInput
 ): RecoveryEngineResult {
@@ -915,5 +976,6 @@ export function calculateRecovery(
       runwayMonths
     ),
     transition: getTransition(input, state),
+    recentProgression: getRecentProgression(input),
   };
 }

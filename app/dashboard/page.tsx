@@ -22,6 +22,13 @@ type RecoveryEngineResult = {
     label: string;
     reason: string;
   };
+  recentProgression: {
+    type: "application" | "interview";
+    company: string;
+    role: string;
+    previousStage: string;
+    newStage: string;
+  } | null;
 };
 
 type RecoveryData = {
@@ -1000,6 +1007,38 @@ export default function DashboardPage() {
                     </span>
                   </div>
                 </div>
+
+                {recoveryEngine.recentProgression && (
+                  <div className="rounded-2xl border border-[#deded8] bg-[#fafaf7] p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                      Recent progress
+                    </p>
+
+                    <h3 className="mt-2 font-semibold text-[#111]">
+                      {recoveryEngine.recentProgression.company}
+                    </h3>
+
+                    <p className="mt-1 text-sm text-[#66665f]">
+                      {recoveryEngine.recentProgression.role}
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-[#55554f]">
+                      <span>
+                        {recoveryEngine.recentProgression.previousStage}
+                      </span>
+                      <span>→</span>
+                      <span>
+                        {recoveryEngine.recentProgression.newStage}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm leading-5 text-[#66665f]">
+                      {recoveryEngine.recentProgression.type === "interview"
+                        ? "Recent interview stage change."
+                        : "Recent application stage change."}
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">

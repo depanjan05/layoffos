@@ -364,13 +364,44 @@ useEffect(() => {
     id: string,
     updates: Partial<Application>
   ) => {
-    setApplications((current) =>
-      current.map((app) =>
+    setApplications((current) => {
+      const existing = current.find((app) => app.id === id);
+
+      if (
+        existing &&
+        updates.stage &&
+        updates.stage !== existing.stage
+      ) {
+        void (async () => {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (!user) return;
+
+          await supabase.from("events").insert({
+            user_id: user.id,
+            event_type: "application_progression",
+            entity_type: "application_progression",
+            entity_id: id,
+            metadata: {
+              applicationId: id,
+              company: existing.company,
+              role: existing.role,
+              previousStage: existing.stage,
+              newStage: updates.stage,
+              changedAt: new Date().toISOString(),
+            },
+          });
+        })();
+      }
+
+      return current.map((app) =>
         app.id === id
           ? { ...app, ...updates }
           : app
-      )
-    );
+      );
+    });
   };
 
   const addApplication = () => {

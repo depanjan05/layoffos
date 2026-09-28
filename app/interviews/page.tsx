@@ -520,16 +520,11 @@ export default function InterviewsPage() {
     id: string,
     stage: Stage
   ) {
-    setInterviews((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              stage,
-            }
-          : item
-      )
-    );
+    const existing = interviews.find((item) => item.id === id);
+
+    if (!existing || existing.stage === stage) {
+      return;
+    }
 
     try {
       const {
@@ -548,6 +543,42 @@ export default function InterviewsPage() {
         console.error(
           "Could not update interview stage",
           error
+        );
+        return;
+      }
+
+      setInterviews((current) =>
+        current.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                stage,
+              }
+            : item
+        )
+      );
+
+      const { error: eventError } = await supabase
+        .from("events")
+        .insert({
+          user_id: user.id,
+          event_type: "interview_progression",
+          entity_type: "interview_progression",
+          entity_id: id,
+          metadata: {
+            interviewId: id,
+            company: existing.company,
+            role: existing.role,
+            previousStage: existing.stage,
+            newStage: stage,
+            changedAt: new Date().toISOString(),
+          },
+        });
+
+      if (eventError) {
+        console.error(
+          "Failed to record interview progression",
+          eventError
         );
       }
     } catch (error) {
