@@ -23,6 +23,7 @@ export type RecoveryAction = {
 
 export type RecoveryEngineInput = {
   recoveryTiming?: string | null;
+  employmentStatus?: string | null;
   careerStage?: string | null;
   targetWorkType?: string | null;
   primaryFocus?: string | null;
@@ -37,18 +38,32 @@ export type RecoveryEngineInput = {
 
   applications?: Array<{
     stage?: string | null;
+    company?: string | null;
+    role?: string | null;
   }>;
 
   interviews?: Array<{
     stage?: string | null;
+    company?: string | null;
+    role?: string | null;
+    interviewDate?: string | null;
+    followUpDate?: string | null;
+    nextAction?: string | null;
   }>;
 
   companies?: Array<{
     status?: string | null;
+    priority?: string | null;
   }>;
 
   networkContacts?: Array<{
+    name?: string | null;
+    company?: string | null;
+    role?: string | null;
     status?: string | null;
+    lastContacted?: string | null;
+    nextAction?: string | null;
+    linkedApplicationId?: string | null;
   }>;
 };
 
@@ -88,14 +103,34 @@ function calculateRunway(input: RecoveryEngineInput) {
 }
 
 function getState(input: RecoveryEngineInput): RecoveryState {
+  const employmentStatus = normalize(input.employmentStatus);
   const careerStage = normalize(input.careerStage);
-  const applicationCount = input.applications?.length ?? 0;
-  const interviewCount = input.interviews?.length ?? 0;
+  const recoveryTiming = normalize(input.recoveryTiming);
+
+  const activeApplications = (input.applications ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  const activeInterviews = (input.interviews ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  const hasRecoveredEmployment =
+    employmentStatus === "employed" ||
+    employmentStatus === "recovered" ||
+    careerStage === "employed" ||
+    careerStage === "recovered";
+
+  if (hasRecoveredEmployment) {
+    return "RECOVERED";
+  }
 
   const hasOffer =
-    careerStage === "offers" ||
     careerStage === "offer" ||
-    input.interviews?.some((item) => {
+    careerStage === "offers" ||
+    activeInterviews.some((item) => {
       const stage = normalize(item.stage);
       return stage === "offer" || stage === "accepted";
     });
@@ -106,7 +141,7 @@ function getState(input: RecoveryEngineInput): RecoveryState {
 
   const hasFinalRound =
     careerStage === "finals" ||
-    input.interviews?.some(
+    activeInterviews.some(
       (item) => normalize(item.stage) === "final"
     );
 
@@ -114,17 +149,23 @@ function getState(input: RecoveryEngineInput): RecoveryState {
     return "FINAL_ROUND";
   }
 
-  if (interviewCount > 0 || careerStage === "interviews") {
+  if (
+    activeInterviews.length > 0 ||
+    careerStage === "interviews"
+  ) {
     return "INTERVIEWING";
   }
 
-  if (applicationCount > 0 || careerStage === "applying") {
+  if (
+    activeApplications.length > 0 ||
+    careerStage === "applying"
+  ) {
     return "SEARCHING";
   }
 
   if (
-    normalize(input.recoveryTiming) === "this week" ||
-    normalize(input.recoveryTiming) === "week"
+    recoveryTiming === "this week" ||
+    recoveryTiming === "week"
   ) {
     return "JUST_LAID_OFF";
   }
@@ -154,43 +195,37 @@ function getPriorities(
     state === "SEARCHING" ||
     state === "STABILIZING"
   ) {
-    priorities.push("APPLICATIONS");
-    priorities.push("NETWORKING");
+    priorities.push("APPLICATIONS", "NETWORKING");
   }
 
   if (
     state === "INTERVIEWING" ||
     state === "FINAL_ROUND"
   ) {
-    priorities.push("INTERVIEWS");
-    priorities.push("NETWORKING");
+    priorities.push("INTERVIEWS", "NETWORKING");
   }
 
   if (state === "OFFER") {
-    priorities.push("INTERVIEWS");
-    priorities.push("FINANCIAL");
+    priorities.push("INTERVIEWS", "FINANCIAL");
+  }
+
+  if (state === "RECOVERED") {
+    priorities.push("DIRECTION", "FINANCIAL");
   }
 
   const focus = normalize(input.primaryFocus);
 
-  if (focus.includes("financial") && !priorities.includes("FINANCIAL")) {
+  if (focus.includes("financial")) {
     priorities.unshift("FINANCIAL");
-  }
-
-  if (focus.includes("network") && !priorities.includes("NETWORKING")) {
+  } else if (focus.includes("network")) {
     priorities.unshift("NETWORKING");
-  }
-
-  if (focus.includes("interview") && !priorities.includes("INTERVIEWS")) {
+  } else if (focus.includes("interview")) {
     priorities.unshift("INTERVIEWS");
-  }
-
-  if (
-    focus.includes("application") &&
-    !priorities.includes("APPLICATIONS")
-  ) {
+  } else if (focus.includes("application")) {
     priorities.unshift("APPLICATIONS");
   }
+
+  const unique = Array.from(new Set(priorities));
 
   const fallback: RecoveryPriority[] = [
     "APPLICATIONS",
@@ -201,357 +236,365 @@ function getPriorities(
   ];
 
   for (const priority of fallback) {
-    if (!priorities.includes(priority)) {
-      priorities.push(priority);
+    if (!unique.includes(priority)) {
+      unique.push(priority);
     }
   }
 
-  return priorities.slice(0, 3);
+  return unique.slice(0, 3);
 }
 
 function getActions(
   input: RecoveryEngineInput,
   state: RecoveryState,
-  runwayMonths: number | null,
-  priorities: RecoveryPriority[]
+  runwayMonths: number | null
 ): RecoveryAction[] {
   const actions: RecoveryAction[] = [];
 
-  const add = (
-    title: string,
-    reason: string,
-    href: string,
-    priority: RecoveryPriority
-  ) => {
-    if (!actions.some((action) => action.title === title)) {
-      actions.push({ title, reason, href, priority });
-    }
-  };
+  const activeApplications = (input.applications ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
 
-  const finalRoundInterviews =
-    input.interviews?.filter(
-      (item) => normalize(item.stage) === "final"
-    ).length ?? 0;
+  const activeInterviews = (input.interviews ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
 
-  const offerInterviews =
-    input.interviews?.filter((item) => {
-      const stage = normalize(item.stage);
-      return stage === "offer" || stage === "accepted";
-    }).length ?? 0;
+  const interviewsNeedingAttention = activeInterviews.filter(
+    (item) =>
+      Boolean(item.followUpDate) ||
+      Boolean(item.nextAction)
+  );
 
-  const activeApplications =
-    input.applications?.filter((item) => {
-      const stage = normalize(item.stage);
-      return stage !== "rejected";
-    }).length ?? 0;
-
-  const networkContacts =
-    input.networkContacts?.filter((item) => {
+  const activeNetworkContacts = (input.networkContacts ?? []).filter(
+    (item) => {
       const status = normalize(item.status);
-      return status !== "closed" && status !== "inactive";
-    }).length ?? 0;
 
-  /*
-   * The engine deliberately creates distinct actions.
-   * One action = one concrete type of work.
-   */
-
-  if (state === "FINAL_ROUND") {
-    add(
-      finalRoundInterviews > 0
-        ? "Prepare for your final-round interview"
-        : "Review your final-round opportunity",
-      "A final-round opportunity is active, so interview preparation should take priority over broad search activity.",
-      "/interviews",
-      "INTERVIEWS"
-    );
-
-    add(
-      "Complete outstanding interview follow-ups",
-      "Final-round opportunities are time-sensitive, so open follow-ups should not sit unresolved.",
-      "/interviews",
-      "INTERVIEWS"
-    );
-
-    if (networkContacts > 0) {
-      add(
-        "Contact your strongest referral opportunity",
-        "Use your existing network to strengthen an active opportunity rather than sending broad outreach.",
-        "/networking",
-        "NETWORKING"
-      );
-    } else {
-      add(
-        "Add your first referral conversation",
-        "A focused referral conversation creates another path alongside the interview pipeline.",
-        "/networking",
-        "NETWORKING"
+      return (
+        status !== "inactive" &&
+        status !== "closed" &&
+        status !== "rejected"
       );
     }
+  );
 
-    if (activeApplications > 0) {
-      add(
-        "Review your active application pipeline",
-        "Keep existing opportunities moving while your strongest opportunity is in the final round.",
-        "/job-search",
-        "APPLICATIONS"
-      );
-    } else {
-      add(
-        "Add your next target application",
-        "Keep the pipeline from becoming dependent on a single opportunity.",
-        "/job-search",
-        "APPLICATIONS"
-      );
+  const activeNetworkFollowUps = activeNetworkContacts.filter(
+    (item) => Boolean(item.nextAction)
+  );
+
+  const hasActiveApplications = activeApplications.length > 0;
+  const hasActiveInterviews = activeInterviews.length > 0;
+
+  if (state === "JUST_LAID_OFF") {
+    actions.push(
+      {
+        title: "Complete your first 72 hours",
+        reason:
+          "Stabilize the immediate financial, administrative, and job-search basics before adding more activity.",
+        href: "/first-72-hours",
+        priority: "DIRECTION",
+      },
+      {
+        title: "Confirm your financial runway",
+        reason:
+          "Knowing your actual runway gives the rest of your recovery plan a realistic time horizon.",
+        href: "/runway",
+        priority: "FINANCIAL",
+      },
+      {
+        title: "Build your target company list",
+        reason:
+          "Turn a broad search into a defined set of companies worth pursuing.",
+        href: "/companies",
+        priority: "APPLICATIONS",
+      },
+      {
+        title: "Start your networking pipeline",
+        reason:
+          "Early conversations can create opportunities before they reach public job boards.",
+        href: "/networking",
+        priority: "NETWORKING",
+      },
+      {
+        title: "Set this week's recovery plan",
+        reason:
+          "Convert the immediate priorities into a manageable weekly operating rhythm.",
+        href: "/plan",
+        priority: "DIRECTION",
+      }
+    );
+  }
+
+  if (state === "STABILIZING" || state === "SEARCHING") {
+    if (runwayMonths !== null && runwayMonths < 4) {
+      actions.push({
+        title: "Review your financial runway",
+        reason:
+          "Your current runway is relatively short, so financial decisions should stay visible while you search.",
+        href: "/runway",
+        priority: "FINANCIAL",
+      });
     }
+
+    actions.push({
+      title: hasActiveApplications
+        ? "Review your active application pipeline"
+        : "Add your first target application",
+      reason: hasActiveApplications
+        ? "Keep active opportunities moving instead of letting applications become passive entries."
+        : "Create a concrete starting point for the search.",
+      href: "/job-search",
+      priority: "APPLICATIONS",
+    });
+
+    if (activeNetworkFollowUps.length > 0) {
+      actions.push({
+        title: "Follow up with an active network contact",
+        reason:
+          "You already have a networking follow-up that can be acted on now.",
+        href: "/networking",
+        priority: "NETWORKING",
+      });
+    } else {
+      actions.push({
+        title:
+          activeNetworkContacts.length > 0
+            ? "Review your active network"
+            : "Start your networking pipeline",
+        reason:
+          activeNetworkContacts.length > 0
+            ? "Use existing relationships to create warm paths into target companies."
+            : "Build a referral and conversation pipeline alongside applications.",
+        href: "/networking",
+        priority: "NETWORKING",
+      });
+    }
+
+    actions.push({
+      title: "Review this week's recovery plan",
+      reason:
+        "Keep your search tied to a weekly execution rhythm rather than ad hoc activity.",
+      href: "/plan",
+      priority: "DIRECTION",
+    });
   }
 
   if (state === "INTERVIEWING") {
-    add(
-      "Prepare for your next interview",
-      "Your current stage makes interview preparation the most time-sensitive search activity.",
-      "/interviews",
-      "INTERVIEWS"
-    );
+    actions.push({
+      title: "Prepare for your next interview",
+      reason:
+        hasActiveInterviews
+          ? "You have an active interview opportunity, so preparation should take priority over adding more volume."
+          : "Keep interview preparation ready while opportunities move through the pipeline.",
+      href: "/interviews",
+      priority: "INTERVIEWS",
+    });
 
-    add(
-      "Complete outstanding interview follow-ups",
-      "Prompt follow-up keeps active interview processes moving.",
-      "/interviews",
-      "INTERVIEWS"
-    );
+    actions.push({
+      title:
+        interviewsNeedingAttention.length > 0
+          ? "Review your interview follow-ups"
+          : "Track your interview follow-up",
+      reason:
+        interviewsNeedingAttention.length > 0
+          ? "At least one interview has a follow-up or next action recorded."
+          : "Make the next interviewer or recruiter action explicit.",
+      href: "/interviews",
+      priority: "INTERVIEWS",
+    });
 
-    add(
-      networkContacts > 0
-        ? "Contact your strongest referral opportunity"
-        : "Add your first referral conversation",
-      "Use networking to create additional paths into relevant opportunities.",
-      "/networking",
-      "NETWORKING"
-    );
+    if (activeNetworkFollowUps.length > 0) {
+      actions.push({
+        title: "Follow up with an active network contact",
+        reason:
+          "You already have a networking action recorded that can move forward.",
+        href: "/networking",
+        priority: "NETWORKING",
+      });
+    } else {
+      actions.push({
+        title: "Review your active network",
+        reason:
+          "Continue warm conversations while interviews progress.",
+        href: "/networking",
+        priority: "NETWORKING",
+      });
+    }
 
-    add(
-      activeApplications > 0
+    if (hasActiveApplications) {
+      actions.push({
+        title: "Review your active application pipeline",
+        reason:
+          "Keep other opportunities moving while you interview.",
+        href: "/job-search",
+        priority: "APPLICATIONS",
+      });
+    }
+  }
+
+  if (state === "FINAL_ROUND") {
+    actions.push({
+      title: "Prepare for your final-round interview",
+      reason:
+        "A final-round opportunity makes interview preparation and follow-up time-sensitive.",
+      href: "/interviews",
+      priority: "INTERVIEWS",
+    });
+
+    actions.push({
+      title:
+        interviewsNeedingAttention.length > 0
+          ? "Review your final-round follow-ups"
+          : "Track your final-round follow-up",
+      reason:
+        interviewsNeedingAttention.length > 0
+          ? "Your interview record contains a follow-up or next action that needs attention."
+          : "Make the next action after the final round explicit.",
+      href: "/interviews",
+      priority: "INTERVIEWS",
+    });
+
+    if (activeNetworkFollowUps.length > 0) {
+      actions.push({
+        title: "Follow up with an active network contact",
+        reason:
+          "Use existing relationships to support the active opportunity pipeline.",
+        href: "/networking",
+        priority: "NETWORKING",
+      });
+    } else if (activeNetworkContacts.length > 0) {
+      actions.push({
+        title: "Review your active network",
+        reason:
+          "Keep relevant relationships warm while the final-round opportunity progresses.",
+        href: "/networking",
+        priority: "NETWORKING",
+      });
+    } else {
+      actions.push({
+        title: "Start a referral conversation",
+        reason:
+          "Build another warm opportunity alongside the final-round process.",
+        href: "/networking",
+        priority: "NETWORKING",
+      });
+    }
+
+    actions.push({
+      title: hasActiveApplications
         ? "Review your active application pipeline"
         : "Add your next target application",
-      "Maintain enough pipeline activity to avoid depending on one interview process.",
-      "/job-search",
-      "APPLICATIONS"
-    );
-
-    if (runwayMonths !== null && runwayMonths < 4) {
-      add(
-        "Review your financial runway",
-        "Your runway is below four months, so financial planning needs attention alongside the interview pipeline.",
-        "/runway",
-        "FINANCIAL"
-      );
-    }
-  }
-
-  if (state === "SEARCHING" || state === "STABILIZING") {
-    if (runwayMonths !== null && runwayMonths < 4) {
-      add(
-        "Review your financial runway",
-        "Your runway is below four months, so cash preservation needs immediate attention.",
-        "/runway",
-        "FINANCIAL"
-      );
-    }
-
-    add(
-      activeApplications > 0
-        ? "Review your active application pipeline"
-        : "Add your first target application",
-      "Keep the job-search pipeline moving with a concrete application action.",
-      "/job-search",
-      "APPLICATIONS"
-    );
-
-    add(
-      networkContacts > 0
-        ? "Contact your strongest referral opportunity"
-        : "Add your first referral conversation",
-      "Direct conversations and referrals can complement application volume.",
-      "/networking",
-      "NETWORKING"
-    );
-
-    add(
-      "Review your weekly recovery plan",
-      "Use the plan to turn broad recovery goals into concrete work for this week.",
-      "/plan",
-      "DIRECTION"
-    );
-
-    if (state === "STABILIZING") {
-      add(
-        "Complete your first 72 hours",
-        "Immediate administrative and financial tasks should be handled before expanding the search.",
-        "/first-72-hours",
-        "DIRECTION"
-      );
-    }
-  }
-
-  if (state === "JUST_LAID_OFF") {
-    add(
-      "Complete your first 72 hours",
-      "You are early in the recovery process, so immediate administrative and financial tasks come first.",
-      "/first-72-hours",
-      "DIRECTION"
-    );
-
-    add(
-      "Review your financial runway",
-      "Knowing exactly how long your current resources last gives you a concrete planning horizon.",
-      "/runway",
-      "FINANCIAL"
-    );
-
-    add(
-      "Build your first target list",
-      "A focused target-company list gives the job search a clear starting point.",
-      "/companies",
-      "APPLICATIONS"
-    );
-
-    add(
-      "Add your first networking contacts",
-      "Early conversations can open opportunities before you rely heavily on applications.",
-      "/networking",
-      "NETWORKING"
-    );
-
-    add(
-      "Set this week's recovery plan",
-      "A short weekly plan prevents the first week after a layoff from becoming unstructured.",
-      "/plan",
-      "DIRECTION"
-    );
+      reason:
+        "Keep another path moving while the final-round opportunity is unresolved.",
+      href: "/job-search",
+      priority: "APPLICATIONS",
+    });
   }
 
   if (state === "OFFER") {
-    add(
-      "Review your offer pipeline",
-      "An offer changes the immediate priority from broad search activity to evaluation and decision-making.",
-      "/interviews",
-      "INTERVIEWS"
-    );
-
-    add(
-      "Review compensation and decision dates",
-      "Keep the practical details of the offer process visible before making a decision.",
-      "/interviews",
-      "INTERVIEWS"
-    );
-
-    add(
-      "Review your financial position",
-      "Compare the opportunity against your current runway and financial needs.",
-      "/runway",
-      "FINANCIAL"
-    );
-
-    add(
-      "Keep your strongest backup opportunity warm",
-      "Maintaining one active alternative can reduce unnecessary dependence on a single outcome.",
-      "/networking",
-      "NETWORKING"
+    actions.push(
+      {
+        title: "Review your offer pipeline",
+        reason:
+          "Keep the offer, decision timeline, and next steps clearly tracked.",
+        href: "/interviews",
+        priority: "INTERVIEWS",
+      },
+      {
+        title: "Review compensation and decision dates",
+        reason:
+          "Make the financial and timing implications explicit before deciding on the next step.",
+        href: "/interviews",
+        priority: "FINANCIAL",
+      },
+      {
+        title: "Review your financial position",
+        reason:
+          "Compare the offer decision against your current runway and obligations.",
+        href: "/runway",
+        priority: "FINANCIAL",
+      },
+      {
+        title: "Keep one backup opportunity moving",
+        reason:
+          "An offer-stage process does not necessarily mean every other opportunity should stop.",
+        href: "/job-search",
+        priority: "APPLICATIONS",
+      }
     );
   }
 
   if (state === "RECOVERED") {
-    add(
-      "Review your recovery data",
-      "Capture where you ended up so the recovery journey remains useful as a record.",
-      "/data",
-      "DIRECTION"
-    );
-
-    add(
-      "Archive completed job-search activity",
-      "Keep the active pipeline focused on opportunities that still require action.",
-      "/job-search",
-      "APPLICATIONS"
+    actions.push(
+      {
+        title: "Review your recovery data",
+        reason:
+          "Close the loop on the recovery process and keep the useful records.",
+        href: "/dashboard",
+        priority: "DIRECTION",
+      },
+      {
+        title: "Review your financial position",
+        reason:
+          "Reassess your runway now that employment has resumed.",
+        href: "/runway",
+        priority: "FINANCIAL",
+      },
+      {
+        title: "Archive completed job-search activity",
+        reason:
+          "Keep the active pipeline focused on opportunities that still matter.",
+        href: "/job-search",
+        priority: "APPLICATIONS",
+      }
     );
   }
 
-  /*
-   * Safety net: every state gets useful work even if the state-specific
-   * rules above did not fill all five slots.
-   */
-
-  const fallbackActions: RecoveryAction[] = [
-    {
-      title: "Review your weekly recovery plan",
-      reason:
-        "Use your current plan to identify the next concrete action for this week.",
-      href: "/plan",
-      priority: "DIRECTION",
-    },
-    {
-      title: "Review your financial runway",
-      reason:
-        "Keep your financial planning current while your employment situation changes.",
-      href: "/runway",
-      priority: "FINANCIAL",
-    },
-    {
-      title: "Review your target companies",
-      reason:
-        "Keep your target-company list focused and actionable.",
-      href: "/companies",
-      priority: "APPLICATIONS",
-    },
-  ];
-
-  for (const action of fallbackActions) {
-    if (actions.length >= 5) break;
-
-    if (!actions.some((item) => item.title === action.title)) {
-      actions.push(action);
-    }
+  if (actions.length === 0) {
+    actions.push(
+      {
+        title: "Review this week's recovery plan",
+        reason:
+          "Keep your recovery work organized around a concrete weekly plan.",
+        href: "/plan",
+        priority: "DIRECTION",
+      },
+      {
+        title: "Review your financial runway",
+        reason:
+          "Keep your available time horizon visible while you make decisions.",
+        href: "/runway",
+        priority: "FINANCIAL",
+      },
+      {
+        title: "Review your target companies",
+        reason:
+          "Maintain a concrete list of opportunities to pursue.",
+        href: "/companies",
+        priority: "APPLICATIONS",
+      }
+    );
   }
 
-  /*
-   * Ensure the final list respects the engine's priority ordering.
-   * Within a priority, preserve the concrete action order above.
-   */
-
-  const priorityOrder = new Map(
-    priorities.map((priority, index) => [priority, index])
-  );
+  const priorityOrder: Record<RecoveryPriority, number> = {
+    FINANCIAL: 1,
+    INTERVIEWS: 2,
+    APPLICATIONS: 3,
+    NETWORKING: 4,
+    DIRECTION: 5,
+  };
 
   return actions
     .sort(
       (a, b) =>
-        (priorityOrder.get(a.priority) ?? 99) -
-        (priorityOrder.get(b.priority) ?? 99)
+        priorityOrder[a.priority] - priorityOrder[b.priority]
     )
     .slice(0, 5);
 }
 
-export function calculateRecovery(
-  input: RecoveryEngineInput
-): RecoveryEngineResult {
-  const runwayMonths = calculateRunway(input);
-  const state = getState(input);
-
-  const priorities = getPriorities(
-    input,
-    state,
-    runwayMonths
-  );
-
-  const actions = getActions(
-    input,
-    state,
-    runwayMonths,
-    priorities
-  );
-
-  const stateLabels: Record<RecoveryState, string> = {
+function getStateLabel(state: RecoveryState) {
+  const labels: Record<RecoveryState, string> = {
     JUST_LAID_OFF: "Just laid off",
     STABILIZING: "Stabilizing",
     SEARCHING: "Actively searching",
@@ -561,29 +604,55 @@ export function calculateRecovery(
     RECOVERED: "Recovered",
   };
 
-  const stateReasons: Record<RecoveryState, string> = {
+  return labels[state];
+}
+
+function getStateReason(
+  state: RecoveryState,
+  input: RecoveryEngineInput
+) {
+  const activeApplications = (input.applications ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  const activeInterviews = (input.interviews ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  const reasons: Record<RecoveryState, string> = {
     JUST_LAID_OFF:
-      "You're early in the recovery process, so immediate stabilization comes first.",
+      "You appear to be in the immediate post-layoff period, so stabilization and setup come first.",
     STABILIZING:
-      "Your recovery profile does not yet show an active interview or application pipeline.",
+      "Your recovery data does not yet show an active application or interview pipeline, so the next step is to establish one.",
     SEARCHING:
-      "You have an active job-search pipeline but no current interview or final-round signal.",
+      `You have ${activeApplications.length} active application${activeApplications.length === 1 ? "" : "s"} in motion, so the focus is consistent search execution.`,
     INTERVIEWING:
-      "Your current pipeline includes interviews, so preparation and follow-up become more important.",
+      `You have ${activeInterviews.length} active interview${activeInterviews.length === 1 ? "" : "s"}, making preparation and follow-up important.`,
     FINAL_ROUND:
       "You have a final-round opportunity, making interview execution and follow-up time-sensitive.",
     OFFER:
-      "Your pipeline includes an offer-stage opportunity.",
+      "You have reached an offer-stage opportunity, so the focus shifts toward decision quality, timing, and financial implications.",
     RECOVERED:
-      "Your recovery process indicates that you have reached a recovered state.",
+      "Your profile indicates that employment has resumed, so the recovery workflow can transition into closeout and reassessment.",
   };
+
+  return reasons[state];
+}
+
+export function calculateRecovery(
+  input: RecoveryEngineInput
+): RecoveryEngineResult {
+  const runwayMonths = calculateRunway(input);
+  const state = getState(input);
 
   return {
     state,
-    stateLabel: stateLabels[state],
-    stateReason: stateReasons[state],
+    stateLabel: getStateLabel(state),
+    stateReason: getStateReason(state, input),
     runwayMonths,
-    priorities,
-    actions,
+    priorities: getPriorities(input, state, runwayMonths),
+    actions: getActions(input, state, runwayMonths),
   };
 }

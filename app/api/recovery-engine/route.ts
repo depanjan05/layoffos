@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+
 import { calculateRecovery } from "@/lib/recovery-engine";
 
 export async function GET() {
@@ -27,7 +29,7 @@ export async function GET() {
     supabase
       .from("profiles")
       .select(
-        "recovery_timing, career_stage, target_work_type, primary_focus"
+        "recovery_timing, employment_status, career_stage, target_work_type, primary_focus"
       )
       .eq("id", user.id)
       .maybeSingle(),
@@ -42,27 +44,32 @@ export async function GET() {
 
     supabase
       .from("applications")
-      .select("stage")
+      .select("stage, company, role")
       .eq("user_id", user.id),
 
     supabase
       .from("interviews")
-      .select("stage")
+      .select(
+        "stage, company, role, interview_date, follow_up_date, next_action"
+      )
       .eq("user_id", user.id),
 
     supabase
       .from("companies")
-      .select("status")
+      .select("status, priority")
       .eq("user_id", user.id),
 
     supabase
       .from("network_contacts")
-      .select("status")
+      .select(
+        "name, company, role, status, last_contacted, next_action, linked_application_id"
+      )
       .eq("user_id", user.id),
   ]);
 
   const result = calculateRecovery({
     recoveryTiming: profileResult.data?.recovery_timing,
+    employmentStatus: profileResult.data?.employment_status,
     careerStage: profileResult.data?.career_stage,
     targetWorkType: profileResult.data?.target_work_type,
     primaryFocus: profileResult.data?.primary_focus,
@@ -75,10 +82,35 @@ export async function GET() {
     benefits: financialResult.data?.benefits ?? 0,
     upcomingExpenses: financialResult.data?.upcoming_expenses ?? 0,
 
-    applications: applicationsResult.data ?? [],
-    interviews: interviewsResult.data ?? [],
-    companies: companiesResult.data ?? [],
-    networkContacts: networkingResult.data ?? [],
+    applications: (applicationsResult.data ?? []).map((item) => ({
+      stage: item.stage,
+      company: item.company,
+      role: item.role,
+    })),
+
+    interviews: (interviewsResult.data ?? []).map((item) => ({
+      stage: item.stage,
+      company: item.company,
+      role: item.role,
+      interviewDate: item.interview_date,
+      followUpDate: item.follow_up_date,
+      nextAction: item.next_action,
+    })),
+
+    companies: (companiesResult.data ?? []).map((item) => ({
+      status: item.status,
+      priority: item.priority,
+    })),
+
+    networkContacts: (networkingResult.data ?? []).map((item) => ({
+      name: item.name,
+      company: item.company,
+      role: item.role,
+      status: item.status,
+      lastContacted: item.last_contacted,
+      nextAction: item.next_action,
+      linkedApplicationId: item.linked_application_id,
+    })),
   });
 
   return NextResponse.json(result);
