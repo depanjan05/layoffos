@@ -93,6 +93,12 @@ export type RecentProgression = {
   newStage: string;
 };
 
+type ProgressionSignal =
+  | "ADVANCING"
+  | "SETBACK"
+  | "CLOSED"
+  | "NEUTRAL";
+
 export type RecoveryEngineResult = {
   state: RecoveryState;
   stateLabel: string;
@@ -543,9 +549,65 @@ function getActionEvidence(
 function getActions(
   input: RecoveryEngineInput,
   state: RecoveryState,
-  runwayMonths: number | null
+  runwayMonths: number | null,
+  recentProgression: RecentProgression | null,
+  progressionSignal: ProgressionSignal
 ): RecoveryAction[] {
   const actions: RecoveryAction[] = [];
+
+  if (recentProgression && progressionSignal !== "NEUTRAL") {
+    if (
+      progressionSignal === "ADVANCING" &&
+      normalize(recentProgression.newStage) === "interview" &&
+      state === "INTERVIEWING"
+    ) {
+      actions.push({
+        title: "Prepare for your next interview",
+        reason:
+          `${recentProgression.company} moved from ${recentProgression.previousStage} to ${recentProgression.newStage}. Prepare while the opportunity is active.`,
+        href: "/interviews",
+        priority: "INTERVIEWS",
+      });
+    }
+
+    if (
+      progressionSignal === "ADVANCING" &&
+      normalize(recentProgression.newStage) === "final" &&
+      state === "FINAL_ROUND"
+    ) {
+      actions.push({
+        title: "Prepare for your final-round interview",
+        reason:
+          `${recentProgression.company} moved into the final round. Preparation and follow-up are now time-sensitive.`,
+        href: "/interviews",
+        priority: "INTERVIEWS",
+      });
+    }
+
+    if (progressionSignal === "SETBACK") {
+      actions.push({
+        title: "Rebuild your active opportunity pipeline",
+        reason:
+          `${recentProgression.company} moved to Rejected. Keep the recovery pipeline active by creating another concrete opportunity.`,
+        href: recentProgression.type === "interview"
+          ? "/interviews"
+          : "/job-search",
+        priority: "APPLICATIONS",
+      });
+    }
+
+    if (progressionSignal === "CLOSED") {
+      actions.push({
+        title: "Review your active opportunity pipeline",
+        reason:
+          `${recentProgression.company} was marked Withdrawn. Focus the recovery plan on opportunities that are still active.`,
+        href: recentProgression.type === "interview"
+          ? "/interviews"
+          : "/job-search",
+        priority: "APPLICATIONS",
+      });
+    }
+  }
 
   const activeApplications = (input.applications ?? []).filter((item) => {
     const stage = normalize(item.stage);
@@ -908,6 +970,47 @@ function getActions(
     }));
 }
 
+function getProgressionSignal(
+  progression: RecentProgression | null
+): ProgressionSignal {
+  if (!progression) {
+    return "NEUTRAL";
+  }
+
+  const previousStage = normalize(progression.previousStage);
+  const newStage = normalize(progression.newStage);
+
+  if (newStage === "rejected") {
+    return "SETBACK";
+  }
+
+  if (newStage === "withdrawn") {
+    return "CLOSED";
+  }
+
+  const stageOrder = [
+    "applied",
+    "recruiter screen",
+    "interview",
+    "final",
+    "offer",
+    "accepted",
+  ];
+
+  const previousIndex = stageOrder.indexOf(previousStage);
+  const newIndex = stageOrder.indexOf(newStage);
+
+  if (
+    previousIndex !== -1 &&
+    newIndex !== -1 &&
+    newIndex > previousIndex
+  ) {
+    return "ADVANCING";
+  }
+
+  return "NEUTRAL";
+}
+
 function getRecentProgression(
   input: RecoveryEngineInput
 ): RecentProgression | null {
@@ -959,6 +1062,8 @@ export function calculateRecovery(
 ): RecoveryEngineResult {
   const state = getState(input);
   const runwayMonths = calculateRunway(input);
+  const recentProgression = getRecentProgression(input);
+  const progressionSignal = getProgressionSignal(recentProgression);
 
   return {
     state,
@@ -973,9 +1078,11 @@ export function calculateRecovery(
     actions: getActions(
       input,
       state,
-      runwayMonths
+      runwayMonths,
+      recentProgression,
+      progressionSignal
     ),
     transition: getTransition(input, state),
-    recentProgression: getRecentProgression(input),
+    recentProgression,
   };
 }
