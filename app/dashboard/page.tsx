@@ -15,6 +15,7 @@ type RecoveryEngineResult = {
     reason: string;
     href: string;
     priority: string;
+    evidence?: string;
   }[];
 };
 
@@ -937,6 +938,12 @@ export default function DashboardPage() {
                             <p className="mt-1 text-sm leading-5 text-[#66665f]">
                               {action.reason}
                             </p>
+
+                            {action.evidence && (
+                              <p className="mt-2 text-xs font-medium text-[#888880]">
+                                Evidence: {action.evidence}
+                              </p>
+                            )}
                           </div>
 
                           <span className="shrink-0 text-lg text-[#77776f]">

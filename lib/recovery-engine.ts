@@ -19,6 +19,7 @@ export type RecoveryAction = {
   reason: string;
   href: string;
   priority: RecoveryPriority;
+  evidence?: string;
 };
 
 export type RecoveryEngineInput = {
@@ -242,6 +243,146 @@ function getPriorities(
   }
 
   return unique.slice(0, 3);
+}
+
+function getActionEvidence(
+  input: RecoveryEngineInput,
+  action: RecoveryAction,
+  state: RecoveryState,
+  runwayMonths: number | null
+) {
+  const activeApplications = (input.applications ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  const activeInterviews = (input.interviews ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  const finalInterviews = activeInterviews.filter(
+    (item) => normalize(item.stage) === "final"
+  );
+
+  const offerInterviews = activeInterviews.filter((item) => {
+    const stage = normalize(item.stage);
+    return stage === "offer" || stage === "accepted";
+  });
+
+  const activeNetworkContacts = (input.networkContacts ?? []).filter(
+    (item) => {
+      const status = normalize(item.status);
+      return (
+        status !== "inactive" &&
+        status !== "closed" &&
+        status !== "rejected"
+      );
+    }
+  );
+
+  const networkFollowUps = activeNetworkContacts.filter(
+    (item) => Boolean(item.nextAction)
+  );
+
+  if (action.href === "/runway" && runwayMonths !== null) {
+    return `${runwayMonths.toFixed(1)} months of estimated runway`;
+  }
+
+  if (action.href === "/interviews") {
+    if (
+      state === "FINAL_ROUND" &&
+      finalInterviews.length > 0 &&
+      action.title.toLowerCase().includes("follow-up")
+    ) {
+      const followUpCount = finalInterviews.filter(
+        (item) => Boolean(item.followUpDate) || Boolean(item.nextAction)
+      ).length;
+
+      return `${followUpCount} final-round interview${
+        followUpCount === 1 ? "" : "s"
+      } with a follow-up or next action`;
+    }
+
+    if (state === "FINAL_ROUND" && finalInterviews.length > 0) {
+      return `${finalInterviews.length} active final-round interview${
+        finalInterviews.length === 1 ? "" : "s"
+      }`;
+    }
+
+    if (offerInterviews.length > 0) {
+      return `${offerInterviews.length} active offer-stage interview${
+        offerInterviews.length === 1 ? "" : "s"
+      }`;
+    }
+
+    if (activeInterviews.length > 0) {
+      return `${activeInterviews.length} active interview${
+        activeInterviews.length === 1 ? "" : "s"
+      }`;
+    }
+
+    return "No active interview records yet";
+  }
+
+  if (action.href === "/job-search") {
+    if (activeApplications.length > 0) {
+      return `${activeApplications.length} active application${
+        activeApplications.length === 1 ? "" : "s"
+      }`;
+    }
+
+    return "No active applications yet";
+  }
+
+  if (action.href === "/networking") {
+    if (networkFollowUps.length > 0) {
+      return `${networkFollowUps.length} network follow-up${
+        networkFollowUps.length === 1 ? "" : "s"
+      } recorded`;
+    }
+
+    if (activeNetworkContacts.length > 0) {
+      return `${activeNetworkContacts.length} active network contact${
+        activeNetworkContacts.length === 1 ? "" : "s"
+      }`;
+    }
+
+    return "No active network contacts yet";
+  }
+
+  if (action.href === "/companies") {
+    const targetCompanies = (input.companies ?? []).filter((item) => {
+      const status = normalize(item.status);
+      return (
+        status !== "rejected" &&
+        status !== "closed" &&
+        status !== "inactive"
+      );
+    });
+
+    if (targetCompanies.length > 0) {
+      return `${targetCompanies.length} active target compan${
+        targetCompanies.length === 1 ? "y" : "ies"
+      }`;
+    }
+
+    return "No active target companies yet";
+  }
+
+  if (action.href === "/first-72-hours") {
+    return "Immediate post-layoff recovery workflow";
+  }
+
+  if (action.href === "/plan") {
+    return "Current weekly recovery plan";
+  }
+
+  if (state === "RECOVERED") {
+    return "Employment status indicates recovery";
+  }
+
+  return undefined;
 }
 
 function getActions(
@@ -590,7 +731,16 @@ function getActions(
       (a, b) =>
         priorityOrder[a.priority] - priorityOrder[b.priority]
     )
-    .slice(0, 5);
+    .slice(0, 5)
+    .map((action) => ({
+      ...action,
+      evidence: getActionEvidence(
+        input,
+        action,
+        state,
+        runwayMonths
+      ),
+    }));
 }
 
 function getStateLabel(state: RecoveryState) {
