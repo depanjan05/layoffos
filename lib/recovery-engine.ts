@@ -584,7 +584,8 @@ function getActions(
   runwayMonths: number | null,
   recentProgression: RecentProgression | null,
   progressionSignal: ProgressionSignal,
-  pipelineSignal: PipelineSignal
+  pipelineSignal: PipelineSignal,
+  pipelineComposition: PipelineComposition
 ): RecoveryAction[] {
   const actions: RecoveryAction[] = [];
 
@@ -677,18 +678,46 @@ function getActions(
   const hasActiveApplications = activeApplications.length > 0;
   const hasActiveInterviews = activeInterviews.length > 0;
 
-  // v1.8: translate the overall pipeline shape into concrete actions.
+  // v1.9.1: use pipeline composition to make recommendations more precise.
   if (pipelineSignal === "OFFER_STAGE") {
-    actions.push({
-      title: "Keep one backup opportunity moving",
-      reason:
-        "An offer-stage opportunity is active, but keeping one other path alive protects the recovery pipeline until the offer is resolved.",
-      href: "/job-search",
-      priority: "APPLICATIONS",
-    });
-  }
+    if (pipelineComposition.acceptedOffers > 0) {
+      actions.push({
+        title: "Confirm your accepted offer details",
+        reason:
+          "An accepted offer is already in the pipeline. Focus on the concrete details that turn the accepted opportunity into a completed transition.",
+        href: "/interviews",
+        priority: "INTERVIEWS",
+      });
+    } else if (pipelineComposition.offers > 0) {
+      actions.push({
+        title: "Review your active offer",
+        reason:
+          "An offer is active but has not yet been accepted. Review the decision, compensation, and next-step details before treating the opportunity as closed.",
+        href: "/interviews",
+        priority: "INTERVIEWS",
+      });
+    }
 
-  if (pipelineSignal === "SETBACK") {
+    if (
+      pipelineComposition.activeApplications +
+        pipelineComposition.activeInterviews >
+      0
+    ) {
+      actions.push({
+        title: "Keep one backup opportunity moving",
+        reason:
+          "An offer-stage opportunity is active. Keep at least one other path moving until the offer is fully resolved.",
+        href:
+          pipelineComposition.activeInterviews > 0
+            ? "/interviews"
+            : "/job-search",
+        priority:
+          pipelineComposition.activeInterviews > 0
+            ? "INTERVIEWS"
+            : "APPLICATIONS",
+      });
+    }
+  } else if (pipelineSignal === "SETBACK") {
     actions.push({
       title: "Create a replacement opportunity",
       reason:
@@ -704,33 +733,57 @@ function getActions(
       href: "/networking",
       priority: "NETWORKING",
     });
-  }
-
-  if (pipelineSignal === "BUILDING") {
+  } else if (pipelineComposition.finalRounds > 0) {
     actions.push({
-      title: "Keep advancing active opportunities",
+      title: "Prepare for your active final round",
       reason:
-        "Your pipeline is showing forward movement. Focus on opportunities already gaining momentum before adding unnecessary volume.",
-      href: hasActiveInterviews ? "/interviews" : "/job-search",
-      priority: hasActiveInterviews ? "INTERVIEWS" : "APPLICATIONS",
+        `You currently have ${pipelineComposition.finalRounds} final-round ${
+          pipelineComposition.finalRounds === 1 ? "opportunity" : "opportunities"
+        }. Focus on closing the strongest active path before adding unnecessary volume.`,
+      href: "/interviews",
+      priority: "INTERVIEWS",
     });
-  }
-
-  if (pipelineSignal === "ACTIVE") {
+  } else if (pipelineComposition.activeInterviews > 0) {
     actions.push({
-      title: "Move your active pipeline forward",
+      title: "Advance an active interview",
       reason:
-        "You have active opportunities. Keep the next action explicit rather than allowing the pipeline to become passive.",
-      href: hasActiveInterviews ? "/interviews" : "/job-search",
-      priority: hasActiveInterviews ? "INTERVIEWS" : "APPLICATIONS",
+        `You have ${pipelineComposition.activeInterviews} active ${
+          pipelineComposition.activeInterviews === 1
+            ? "interview"
+            : "interviews"
+        } and no final round yet. Make the next interview action explicit.`,
+      href: "/interviews",
+      priority: "INTERVIEWS",
     });
-  }
-
-  if (pipelineSignal === "THIN") {
+  } else if (pipelineComposition.activeApplications > 0) {
+    actions.push({
+      title: "Convert applications into conversations",
+      reason:
+        `You have ${pipelineComposition.activeApplications} active ${
+          pipelineComposition.activeApplications === 1
+            ? "application"
+            : "applications"
+        } but no active interviews. Focus on turning existing applications into conversations before simply adding more.`,
+      href: "/job-search",
+      priority: "APPLICATIONS",
+    });
+  } else if (pipelineComposition.activeNetworkContacts > 0) {
+    actions.push({
+      title: "Turn a network contact into an opportunity",
+      reason:
+        `You have ${pipelineComposition.activeNetworkContacts} active network ${
+          pipelineComposition.activeNetworkContacts === 1
+            ? "contact"
+            : "contacts"
+        } but no active application or interview pipeline. Convert a warm relationship into a concrete opportunity.`,
+      href: "/networking",
+      priority: "NETWORKING",
+    });
+  } else {
     actions.push({
       title: "Add a new target opportunity",
       reason:
-        "Your active opportunity pipeline is currently light. Add a concrete target to rebuild search momentum.",
+        "Your active opportunity pipeline is currently empty. Add a concrete target to restart search momentum.",
       href: "/job-search",
       priority: "APPLICATIONS",
     });
@@ -738,7 +791,7 @@ function getActions(
     actions.push({
       title: "Create a new networking path",
       reason:
-        "A thin pipeline benefits from adding warm conversations alongside applications.",
+        "There is no active opportunity pipeline yet. Add a warm conversation alongside your next target.",
       href: "/networking",
       priority: "NETWORKING",
     });
@@ -951,14 +1004,17 @@ function getActions(
   }
 
   if (state === "OFFER") {
-    actions.push(
-      {
+    if (pipelineComposition.acceptedOffers === 0) {
+      actions.push({
         title: "Review your offer pipeline",
         reason:
           "Keep the offer, decision timeline, and next steps clearly tracked.",
         href: "/interviews",
         priority: "INTERVIEWS",
-      },
+      });
+    }
+
+    actions.push(
       {
         title: "Review compensation and decision dates",
         reason:
@@ -1323,7 +1379,8 @@ export function calculateRecovery(
       runwayMonths,
       recentProgression,
       progressionSignal,
-      pipelineSignal
+      pipelineSignal,
+      pipelineComposition
     ),
     transition: getTransition(input, state),
     recentProgression,
