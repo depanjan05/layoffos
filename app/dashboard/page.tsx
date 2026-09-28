@@ -29,6 +29,7 @@ type RecoveryEngineResult = {
     previousStage: string;
     newStage: string;
   } | null;
+  pipelineSignal: string;
 };
 
 type RecoveryData = {
@@ -1006,6 +1007,28 @@ export default function DashboardPage() {
                       {recoveryEngine.transition.nextState.replaceAll("_", " ")}
                     </span>
                   </div>
+                </div>
+
+                <div className="rounded-2xl border border-[#deded8] bg-[#fafaf7] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                    Pipeline signal
+                  </p>
+
+                  <h3 className="mt-2 font-semibold text-[#111]">
+                    {recoveryEngine.pipelineSignal.replaceAll("_", " ")}
+                  </h3>
+
+                  <p className="mt-1 text-sm leading-5 text-[#66665f]">
+                    {recoveryEngine.pipelineSignal === "OFFER_STAGE"
+                      ? "An offer-stage opportunity is active."
+                      : recoveryEngine.pipelineSignal === "SETBACK"
+                        ? "A recent opportunity closed or was rejected."
+                        : recoveryEngine.pipelineSignal === "BUILDING"
+                          ? "Your active pipeline is moving forward."
+                          : recoveryEngine.pipelineSignal === "ACTIVE"
+                            ? "You have active opportunities in the pipeline."
+                            : "Your active opportunity pipeline is currently light."}
+                  </p>
                 </div>
 
                 {recoveryEngine.recentProgression && (

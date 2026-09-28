@@ -99,6 +99,13 @@ type ProgressionSignal =
   | "CLOSED"
   | "NEUTRAL";
 
+export type PipelineSignal =
+  | "OFFER_STAGE"
+  | "SETBACK"
+  | "BUILDING"
+  | "ACTIVE"
+  | "THIN";
+
 export type RecoveryEngineResult = {
   state: RecoveryState;
   stateLabel: string;
@@ -108,6 +115,7 @@ export type RecoveryEngineResult = {
   actions: RecoveryAction[];
   transition: RecoveryTransition;
   recentProgression: RecentProgression | null;
+  pipelineSignal: PipelineSignal;
 };
 
 function normalize(value?: string | null) {
@@ -336,9 +344,20 @@ function getTransition(
 function getPriorities(
   input: RecoveryEngineInput,
   state: RecoveryState,
-  runwayMonths: number | null
+  runwayMonths: number | null,
+  pipelineSignal: PipelineSignal
 ): RecoveryPriority[] {
   const priorities: RecoveryPriority[] = [];
+
+  if (pipelineSignal === "OFFER_STAGE") {
+    priorities.push("INTERVIEWS", "FINANCIAL");
+  } else if (
+    pipelineSignal === "SETBACK" ||
+    pipelineSignal === "BUILDING" ||
+    pipelineSignal === "THIN"
+  ) {
+    priorities.push("APPLICATIONS", "NETWORKING");
+  }
 
   if (runwayMonths !== null && runwayMonths < 4) {
     priorities.push("FINANCIAL");
@@ -970,6 +989,55 @@ function getActions(
     }));
 }
 
+function getPipelineSignal(
+  input: RecoveryEngineInput,
+  recentProgression: RecentProgression | null,
+  progressionSignal: ProgressionSignal
+): PipelineSignal {
+  const activeApplications = (input.applications ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  const activeInterviews = (input.interviews ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  const hasOfferStage = activeInterviews.some((item) => {
+    const stage = normalize(item.stage);
+    return stage === "offer" || stage === "accepted";
+  });
+
+  if (hasOfferStage) {
+    return "OFFER_STAGE";
+  }
+
+  if (
+    progressionSignal === "SETBACK" ||
+    progressionSignal === "CLOSED"
+  ) {
+    return "SETBACK";
+  }
+
+  const activeOpportunityCount =
+    activeApplications.length + activeInterviews.length;
+
+  if (
+    progressionSignal === "ADVANCING" &&
+    recentProgression &&
+    activeOpportunityCount > 0
+  ) {
+    return "BUILDING";
+  }
+
+  if (activeOpportunityCount > 0) {
+    return "ACTIVE";
+  }
+
+  return "THIN";
+}
+
 function getProgressionSignal(
   progression: RecentProgression | null
 ): ProgressionSignal {
@@ -1064,6 +1132,11 @@ export function calculateRecovery(
   const runwayMonths = calculateRunway(input);
   const recentProgression = getRecentProgression(input);
   const progressionSignal = getProgressionSignal(recentProgression);
+  const pipelineSignal = getPipelineSignal(
+    input,
+    recentProgression,
+    progressionSignal
+  );
 
   return {
     state,
@@ -1073,7 +1146,8 @@ export function calculateRecovery(
     priorities: getPriorities(
       input,
       state,
-      runwayMonths
+      runwayMonths,
+      pipelineSignal
     ),
     actions: getActions(
       input,
@@ -1084,5 +1158,6 @@ export function calculateRecovery(
     ),
     transition: getTransition(input, state),
     recentProgression,
+    pipelineSignal,
   };
 }
