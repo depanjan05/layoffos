@@ -22,6 +22,13 @@ export type RecoveryAction = {
   evidence?: string;
 };
 
+export type RecoverySituation = {
+  headline: string;
+  summary: string;
+  risk: string | null;
+};
+
+
 export type RecoveryTransition = {
   nextState: RecoveryState;
   label: string;
@@ -129,6 +136,7 @@ export type RecoveryEngineResult = {
   recentProgression: RecentProgression | null;
   pipelineSignal: PipelineSignal;
   pipelineComposition: PipelineComposition;
+  situation: RecoverySituation;
 };
 
 function normalize(value?: string | null) {
@@ -434,6 +442,141 @@ function getPriorities(
   }
 
   return unique.slice(0, 3);
+}
+
+function getRecoverySituation(
+  input: RecoveryEngineInput,
+  state: RecoveryState,
+  runwayMonths: number | null,
+  pipelineSignal: PipelineSignal,
+  pipelineComposition: PipelineComposition,
+  recentProgression: RecentProgression | null
+): RecoverySituation {
+  const criticalRunway =
+    runwayMonths !== null && runwayMonths < 2;
+
+  if (criticalRunway) {
+    const runwayText = `${runwayMonths.toFixed(1)} months of estimated runway`;
+
+    if (pipelineComposition.acceptedOffers > 0) {
+      return {
+        headline: "You have an accepted offer with critical runway pressure.",
+        summary:
+          "Your recovery pipeline has reached an accepted offer, but the remaining financial runway still needs active attention until employment resumes.",
+        risk: `Your current runway is ${runwayText}.`,
+      };
+    }
+
+    if (pipelineComposition.offers > 0) {
+      return {
+        headline: "You have an active offer with critical runway pressure.",
+        summary:
+          "An offer-stage opportunity is active, but the financial runway remains short while the decision is unresolved.",
+        risk: `Your current runway is ${runwayText}.`,
+      };
+    }
+
+    if (pipelineComposition.finalRounds > 0) {
+      return {
+        headline: "You are in a final round with critical runway pressure.",
+        summary:
+          "A final-round opportunity is active, so execution matters while financial runway remains constrained.",
+        risk: `Your current runway is ${runwayText}.`,
+      };
+    }
+
+    if (pipelineComposition.activeInterviews > 0) {
+      return {
+        headline: "You have active interviews with critical runway pressure.",
+        summary:
+          "Interview opportunities are moving, but financial runway needs attention alongside interview execution.",
+        risk: `Your current runway is ${runwayText}.`,
+      };
+    }
+
+    return {
+      headline: "Your financial runway is critically short.",
+      summary:
+        "The immediate recovery priority is to keep the job search moving while making financial decisions with a very limited runway.",
+      risk: `Your current runway is ${runwayText}.`,
+    };
+  }
+
+  if (pipelineComposition.acceptedOffers > 0) {
+    return {
+      headline: "You have an accepted offer in the pipeline.",
+      summary:
+        "The recovery process has reached an accepted offer. The remaining work is to confirm the transition details and update employment status when it resumes.",
+      risk: null,
+    };
+  }
+
+  if (pipelineSignal === "OFFER_STAGE" || pipelineComposition.offers > 0) {
+    return {
+      headline: "You have an active offer-stage opportunity.",
+      summary:
+        "The recovery pipeline has reached a decision point where compensation, timing, and the next step need to stay explicit.",
+      risk: "The opportunity is not yet fully resolved.",
+    };
+  }
+
+  if (pipelineComposition.finalRounds > 0 || state === "FINAL_ROUND") {
+    return {
+      headline: "You are in a final-round recovery stage.",
+      summary:
+        "At least one opportunity has reached the final round, so preparation, logistics, and follow-up are now time-sensitive.",
+      risk: null,
+    };
+  }
+
+  if (pipelineSignal === "SETBACK") {
+    const company = recentProgression?.company;
+
+    return {
+      headline: "A recent opportunity has closed or been rejected.",
+      summary: company
+        ? `${company} moved out of the active pipeline. The next step is to capture the signal and replace the lost opportunity.`
+        : "A recent opportunity moved out of the active pipeline. The next step is to capture the signal and replace the lost opportunity.",
+      risk: "Pipeline capacity was lost and needs to be rebuilt.",
+    };
+  }
+
+  if (pipelineComposition.activeInterviews > 0 || state === "INTERVIEWING") {
+    return {
+      headline: "You have an active interview pipeline.",
+      summary:
+        `${pipelineComposition.activeInterviews} active interview${pipelineComposition.activeInterviews === 1 ? "" : "s"} ${pipelineComposition.activeInterviews === 1 ? "is" : "are"} in progress. The next meaningful transition is a final-round opportunity.`,
+      risk: null,
+    };
+  }
+
+  if (pipelineComposition.activeApplications > 0 || state === "SEARCHING") {
+    return {
+      headline: "You are in active job search mode.",
+      summary:
+        `${pipelineComposition.activeApplications} active application${pipelineComposition.activeApplications === 1 ? "" : "s"} ${pipelineComposition.activeApplications === 1 ? "is" : "are"} currently in the pipeline.`,
+      risk:
+        pipelineSignal === "THIN"
+          ? "The active opportunity pipeline is still relatively thin."
+          : null,
+    };
+  }
+
+  if (state === "JUST_LAID_OFF") {
+    return {
+      headline: "You are in the immediate post-layoff stage.",
+      summary:
+        "The immediate priority is stabilization: establish your financial baseline, complete the first recovery steps, and create a manageable operating rhythm.",
+      risk: null,
+    };
+  }
+
+  return {
+    headline: "You are stabilizing your recovery.",
+    summary:
+      "There is not yet enough active opportunity evidence to place you further into the recovery pipeline.",
+    risk: null,
+  };
 }
 
 function getActionEvidence(
@@ -1685,6 +1828,14 @@ export function calculateRecovery(
     recentProgression,
     progressionSignal
   );
+  const situation = getRecoverySituation(
+    input,
+    state,
+    runwayMonths,
+    pipelineSignal,
+    pipelineComposition,
+    recentProgression
+  );
 
   return {
     state,
@@ -1710,5 +1861,6 @@ export function calculateRecovery(
     recentProgression,
     pipelineSignal,
     pipelineComposition,
+    situation,
   };
 }
