@@ -1091,12 +1091,12 @@ function getActions(
     );
   }
 
-  const priorityOrder: Record<RecoveryPriority, number> = {
-    FINANCIAL: 1,
-    INTERVIEWS: 2,
-    APPLICATIONS: 3,
-    NETWORKING: 4,
-    DIRECTION: 5,
+  const priorityBase: Record<RecoveryPriority, number> = {
+    FINANCIAL: 20,
+    INTERVIEWS: 22,
+    APPLICATIONS: 18,
+    NETWORKING: 15,
+    DIRECTION: 10,
   };
 
   const completedActions = input.completedActions ?? [];
@@ -1111,7 +1111,7 @@ function getActions(
       )
   );
 
-  return uniqueActions
+  const rankedActions = uniqueActions
     .filter(
       (action) =>
         !completedActions.some(
@@ -1120,19 +1120,232 @@ function getActions(
             completed.href === action.href
         )
     )
-    .sort(
-      (a, b) =>
-        priorityOrder[a.priority] - priorityOrder[b.priority]
-    )
-    .slice(0, 5)
-    .map((action) => ({
-      ...action,
-      evidence: getActionEvidence(
+    .map((action, index) => {
+      const evidence = getActionEvidence(
         input,
         action,
         state,
         runwayMonths
-      ),
+      );
+
+      const title = normalize(action.title);
+      let score = priorityBase[action.priority];
+
+      // Evidence-backed actions get a modest boost.
+      if (evidence) {
+        score += 5;
+      }
+
+      // State relevance.
+      if (
+        state === "JUST_LAID_OFF" &&
+        action.href === "/first-72-hours"
+      ) {
+        score += 35;
+      }
+
+      if (
+        state === "INTERVIEWING" &&
+        action.href === "/interviews"
+      ) {
+        score += 18;
+      }
+
+      if (
+        state === "FINAL_ROUND" &&
+        action.href === "/interviews"
+      ) {
+        score += 25;
+      }
+
+      if (
+        state === "OFFER" &&
+        action.href === "/interviews"
+      ) {
+        score += 20;
+      }
+
+      if (
+        state === "RECOVERED" &&
+        action.href === "/dashboard"
+      ) {
+        score += 15;
+      }
+
+      // Financial urgency.
+      if (runwayMonths !== null) {
+        if (
+          runwayMonths < 2 &&
+          action.href === "/runway"
+        ) {
+          score += 30;
+        } else if (
+          runwayMonths < 4 &&
+          action.href === "/runway"
+        ) {
+          score += 20;
+        } else if (
+          runwayMonths < 8 &&
+          action.href === "/runway"
+        ) {
+          score += 8;
+        }
+      }
+
+      // Accepted offer: closing the transition takes precedence
+      // over generic offer-management actions.
+      if (pipelineComposition.acceptedOffers > 0) {
+        if (title.includes("confirm your accepted offer")) {
+          score += 35;
+        }
+
+        if (title.includes("compensation and decision dates")) {
+          score += 18;
+        }
+
+        if (title.includes("backup opportunity")) {
+          score += 10;
+        }
+      }
+
+      // Active offer without acceptance.
+      if (
+        pipelineComposition.offers > 0 &&
+        pipelineComposition.acceptedOffers === 0
+      ) {
+        if (title.includes("review your offer pipeline")) {
+          score += 30;
+        }
+
+        if (title.includes("compensation and decision dates")) {
+          score += 22;
+        }
+
+        if (action.href === "/interviews") {
+          score += 10;
+        }
+      }
+
+      // Final-round opportunities are more urgent than general
+      // pipeline-building actions.
+      if (pipelineComposition.finalRounds > 0) {
+        if (action.href === "/interviews") {
+          score += 25;
+        }
+
+        if (title.includes("final-round")) {
+          score += 15;
+        }
+      }
+
+      // Active interviews should generally outrank new application
+      // volume while an interview path is open.
+      if (pipelineComposition.activeInterviews > 0) {
+        if (action.href === "/interviews") {
+          score += 18;
+        }
+
+        if (
+          title.includes("prepare for your next interview") ||
+          title.includes("advance an active interview")
+        ) {
+          score += 12;
+        }
+      }
+
+      // Applications with no active interviews need conversion,
+      // not simply more application volume.
+      if (
+        pipelineComposition.activeApplications > 0 &&
+        pipelineComposition.activeInterviews === 0
+      ) {
+        if (
+          title.includes("convert applications into conversations")
+        ) {
+          score += 22;
+        }
+
+        if (action.href === "/job-search") {
+          score += 8;
+        }
+      }
+
+      // Networking follow-ups are more actionable than generic
+      // networking activity.
+      const hasNetworkFollowUp = (
+        input.networkContacts ?? []
+      ).some((contact) => {
+        const status = normalize(contact.status);
+
+        return (
+          status !== "inactive" &&
+          status !== "closed" &&
+          status !== "rejected" &&
+          Boolean(contact.nextAction)
+        );
+      });
+
+      if (
+        hasNetworkFollowUp &&
+        title.includes("follow up with an active network contact")
+      ) {
+        score += 22;
+      }
+
+      // Recent progression should increase urgency for actions
+      // connected to the changed opportunity.
+      if (
+        progressionSignal === "ADVANCING" &&
+        recentProgression
+      ) {
+        const newStage = normalize(recentProgression.newStage);
+
+        if (
+          (newStage === "interview" || newStage === "final") &&
+          action.href === "/interviews"
+        ) {
+          score += 18;
+        }
+      }
+
+      if (progressionSignal === "SETBACK") {
+        if (
+          title.includes("replacement opportunity") ||
+          title.includes("new referral conversation")
+        ) {
+          score += 20;
+        }
+      }
+
+      if (progressionSignal === "CLOSED") {
+        if (
+          action.href === "/job-search" ||
+          action.href === "/networking"
+        ) {
+          score += 12;
+        }
+      }
+
+      return {
+        action,
+        evidence,
+        score,
+        index,
+      };
+    });
+
+  return rankedActions
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        priorityBase[b.action.priority] -
+          priorityBase[a.action.priority] ||
+        a.index - b.index
+    )
+    .slice(0, 5)
+    .map(({ action, evidence }) => ({
+      ...action,
+      evidence,
     }));
 }
 
