@@ -610,7 +610,7 @@ function getActions(
       state === "FINAL_ROUND"
     ) {
       actions.push({
-        title: "Prepare for your final-round interview",
+        title: "Prepare your final-round talking points",
         reason:
           `${recentProgression.company} moved into the final round. Preparation and follow-up are now time-sensitive.`,
         href: "/interviews",
@@ -620,9 +620,9 @@ function getActions(
 
     if (progressionSignal === "SETBACK") {
       actions.push({
-        title: "Rebuild your active opportunity pipeline",
+        title: "Review what changed in the closed opportunity",
         reason:
-          `${recentProgression.company} moved to Rejected. Keep the recovery pipeline active by creating another concrete opportunity.`,
+          `${recentProgression.company} moved to Rejected. Capture the useful signal from the setback before replacing the lost opportunity.`,
         href: recentProgression.type === "interview"
           ? "/interviews"
           : "/job-search",
@@ -719,7 +719,7 @@ function getActions(
     }
   } else if (pipelineSignal === "SETBACK") {
     actions.push({
-      title: "Create a replacement opportunity",
+      title: "Identify 3 replacement target roles",
       reason:
         "A recent opportunity closed or was rejected. Replace the lost pipeline capacity with another concrete opportunity.",
       href: "/job-search",
@@ -727,7 +727,7 @@ function getActions(
     });
 
     actions.push({
-      title: "Start a new referral conversation",
+      title: "Reopen a warm referral path",
       reason:
         "Use networking to create another path after the recent setback.",
       href: "/networking",
@@ -735,7 +735,7 @@ function getActions(
     });
   } else if (pipelineComposition.finalRounds > 0) {
     actions.push({
-      title: "Prepare for your active final round",
+      title: "Confirm final-round logistics",
       reason:
         `You currently have ${pipelineComposition.finalRounds} final-round ${
           pipelineComposition.finalRounds === 1 ? "opportunity" : "opportunities"
@@ -950,7 +950,7 @@ function getActions(
 
   if (state === "FINAL_ROUND") {
     actions.push({
-      title: "Prepare for your final-round interview",
+      title: "Prepare your final-round talking points",
       reason:
         "A final-round opportunity makes interview preparation and follow-up time-sensitive.",
       href: "/interviews",
@@ -960,8 +960,8 @@ function getActions(
     actions.push({
       title:
         interviewsNeedingAttention.length > 0
-          ? "Review your final-round follow-ups"
-          : "Track your final-round follow-up",
+          ? "Send your final-round follow-up"
+          : "Plan your final-round follow-up",
       reason:
         interviewsNeedingAttention.length > 0
           ? "Your interview record contains a follow-up or next action that needs attention."
