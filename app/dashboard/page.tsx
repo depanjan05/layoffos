@@ -17,6 +17,11 @@ type RecoveryEngineResult = {
     priority: string;
     evidence?: string;
   }[];
+  transition: {
+    nextState: string;
+    label: string;
+    reason: string;
+  };
 };
 
 type RecoveryData = {
@@ -971,6 +976,28 @@ export default function DashboardPage() {
                         {priority}
                       </span>
                     ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-[#deded8] bg-[#fafaf7] p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                        Next transition
+                      </p>
+
+                      <h3 className="mt-2 font-semibold text-[#111]">
+                        {recoveryEngine.transition.label}
+                      </h3>
+
+                      <p className="mt-1 text-sm leading-5 text-[#66665f]">
+                        {recoveryEngine.transition.reason}
+                      </p>
+                    </div>
+
+                    <span className="shrink-0 rounded-full border border-[#deded8] px-3 py-1 text-xs font-semibold text-[#55554f]">
+                      {recoveryEngine.transition.nextState.replaceAll("_", " ")}
+                    </span>
                   </div>
                 </div>
 

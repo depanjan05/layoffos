@@ -22,6 +22,12 @@ export type RecoveryAction = {
   evidence?: string;
 };
 
+export type RecoveryTransition = {
+  nextState: RecoveryState;
+  label: string;
+  reason: string;
+};
+
 export type RecoveryEngineInput = {
   recoveryTiming?: string | null;
   employmentStatus?: string | null;
@@ -80,6 +86,7 @@ export type RecoveryEngineResult = {
   runwayMonths: number | null;
   priorities: RecoveryPriority[];
   actions: RecoveryAction[];
+  transition: RecoveryTransition;
 };
 
 function normalize(value?: string | null) {
@@ -93,7 +100,8 @@ function calculateRunway(input: RecoveryEngineInput) {
     (input.upcomingExpenses ?? 0);
 
   const monthlyInflow =
-    (input.otherIncome ?? 0) + (input.benefits ?? 0);
+    (input.otherIncome ?? 0) +
+    (input.benefits ?? 0);
 
   const monthlyOutflow =
     (input.monthlyExpenses ?? 0) +
@@ -177,6 +185,131 @@ function getState(input: RecoveryEngineInput): RecoveryState {
   }
 
   return "STABILIZING";
+}
+
+function getStateLabel(state: RecoveryState) {
+  const labels: Record<RecoveryState, string> = {
+    JUST_LAID_OFF: "Just laid off",
+    STABILIZING: "Stabilizing",
+    SEARCHING: "Searching",
+    INTERVIEWING: "Interviewing",
+    FINAL_ROUND: "Final round",
+    OFFER: "Offer",
+    RECOVERED: "Recovered",
+  };
+
+  return labels[state];
+}
+
+function getStateReason(
+  input: RecoveryEngineInput,
+  state: RecoveryState
+) {
+  const activeApplications = (input.applications ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  const activeInterviews = (input.interviews ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  switch (state) {
+    case "JUST_LAID_OFF":
+      return "Your recovery timing indicates a recent layoff and the immediate stabilization workflow is the next step.";
+
+    case "STABILIZING":
+      return "There is not yet enough active job-search evidence to place you further into the recovery pipeline.";
+
+    case "SEARCHING":
+      return `${activeApplications.length} active application${activeApplications.length === 1 ? "" : "s"} indicate that your recovery is in active job search mode.`;
+
+    case "INTERVIEWING":
+      return `${activeInterviews.length} active interview${activeInterviews.length === 1 ? "" : "s"} indicate that opportunities have moved beyond the application stage.`;
+
+    case "FINAL_ROUND":
+      return "At least one active interview has reached the final round, making execution and follow-up time-sensitive.";
+
+    case "OFFER":
+      return "An active interview or career-stage record indicates that an offer-stage decision is in progress.";
+
+    case "RECOVERED":
+      return "Your employment status or career stage indicates that employment has resumed.";
+  }
+}
+
+function getTransition(
+  input: RecoveryEngineInput,
+  state: RecoveryState
+): RecoveryTransition {
+  const activeApplications = (input.applications ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  const activeInterviews = (input.interviews ?? []).filter((item) => {
+    const stage = normalize(item.stage);
+    return stage !== "rejected" && stage !== "withdrawn";
+  });
+
+  switch (state) {
+    case "JUST_LAID_OFF":
+      return {
+        nextState: "STABILIZING",
+        label: "Stabilize",
+        reason:
+          "Complete the immediate post-layoff workflow and establish your financial and weekly recovery baseline.",
+      };
+
+    case "STABILIZING":
+      return {
+        nextState: "SEARCHING",
+        label: "Start searching",
+        reason:
+          "Move into active search once you have target opportunities or applications in motion.",
+      };
+
+    case "SEARCHING":
+      return {
+        nextState: "INTERVIEWING",
+        label: "Reach interviews",
+        reason:
+          `${activeApplications.length} active application${activeApplications.length === 1 ? "" : "s"} are currently in the pipeline. The next meaningful transition is an interview.`,
+      };
+
+    case "INTERVIEWING":
+      return {
+        nextState: "FINAL_ROUND",
+        label: "Reach final round",
+        reason:
+          `${activeInterviews.length} active interview${activeInterviews.length === 1 ? "" : "s"} are in progress. The next meaningful transition is a final-round opportunity.`,
+      };
+
+    case "FINAL_ROUND":
+      return {
+        nextState: "OFFER",
+        label: "Reach offer",
+        reason:
+          "The current priority is converting the final-round opportunity into an offer-stage decision.",
+      };
+
+    case "OFFER":
+      return {
+        nextState: "RECOVERED",
+        label: "Return to employment",
+        reason:
+          "The recovery cycle closes when an offer is accepted and employment status is updated.",
+      };
+
+    case "RECOVERED":
+      return {
+        nextState: "RECOVERED",
+        label: "Maintain recovery",
+        reason:
+          "Employment has resumed, so the system shifts from job-search execution to maintaining the recovered state.",
+      };
+  }
 }
 
 function getPriorities(
@@ -278,6 +411,7 @@ function getActionEvidence(
   const activeNetworkContacts = (input.networkContacts ?? []).filter(
     (item) => {
       const status = normalize(item.status);
+
       return (
         status !== "inactive" &&
         status !== "closed" &&
@@ -359,6 +493,7 @@ function getActionEvidence(
   if (action.href === "/companies") {
     const targetCompanies = (input.companies ?? []).filter((item) => {
       const status = normalize(item.status);
+
       return (
         status !== "rejected" &&
         status !== "closed" &&
@@ -758,66 +893,27 @@ function getActions(
     }));
 }
 
-function getStateLabel(state: RecoveryState) {
-  const labels: Record<RecoveryState, string> = {
-    JUST_LAID_OFF: "Just laid off",
-    STABILIZING: "Stabilizing",
-    SEARCHING: "Actively searching",
-    INTERVIEWING: "Interviewing",
-    FINAL_ROUND: "Final round",
-    OFFER: "Offer stage",
-    RECOVERED: "Recovered",
-  };
-
-  return labels[state];
-}
-
-function getStateReason(
-  state: RecoveryState,
-  input: RecoveryEngineInput
-) {
-  const activeApplications = (input.applications ?? []).filter((item) => {
-    const stage = normalize(item.stage);
-    return stage !== "rejected" && stage !== "withdrawn";
-  });
-
-  const activeInterviews = (input.interviews ?? []).filter((item) => {
-    const stage = normalize(item.stage);
-    return stage !== "rejected" && stage !== "withdrawn";
-  });
-
-  const reasons: Record<RecoveryState, string> = {
-    JUST_LAID_OFF:
-      "You appear to be in the immediate post-layoff period, so stabilization and setup come first.",
-    STABILIZING:
-      "Your recovery data does not yet show an active application or interview pipeline, so the next step is to establish one.",
-    SEARCHING:
-      `You have ${activeApplications.length} active application${activeApplications.length === 1 ? "" : "s"} in motion, so the focus is consistent search execution.`,
-    INTERVIEWING:
-      `You have ${activeInterviews.length} active interview${activeInterviews.length === 1 ? "" : "s"}, making preparation and follow-up important.`,
-    FINAL_ROUND:
-      "You have a final-round opportunity, making interview execution and follow-up time-sensitive.",
-    OFFER:
-      "You have reached an offer-stage opportunity, so the focus shifts toward decision quality, timing, and financial implications.",
-    RECOVERED:
-      "Your profile indicates that employment has resumed, so the recovery workflow can transition into closeout and reassessment.",
-  };
-
-  return reasons[state];
-}
-
 export function calculateRecovery(
   input: RecoveryEngineInput
 ): RecoveryEngineResult {
-  const runwayMonths = calculateRunway(input);
   const state = getState(input);
+  const runwayMonths = calculateRunway(input);
 
   return {
     state,
     stateLabel: getStateLabel(state),
-    stateReason: getStateReason(state, input),
+    stateReason: getStateReason(input, state),
     runwayMonths,
-    priorities: getPriorities(input, state, runwayMonths),
-    actions: getActions(input, state, runwayMonths),
+    priorities: getPriorities(
+      input,
+      state,
+      runwayMonths
+    ),
+    actions: getActions(
+      input,
+      state,
+      runwayMonths
+    ),
+    transition: getTransition(input, state),
   };
 }
