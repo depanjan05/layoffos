@@ -1824,6 +1824,11 @@ function getActions(
     return action.priority;
   };
 
+  const applicationActionMemory = getApplicationActionMemory(
+    input.applicationActionEvents,
+    input.progressionEvents
+  );
+
   const rankedActions = uniqueActions
     .filter(
       (action) =>
@@ -2029,6 +2034,42 @@ function getActions(
           action.href === "/networking"
         ) {
           score += 12;
+        }
+      }
+
+      // v1.25: learning-aware application action ranking.
+      // Historical action memory only influences recommendations
+      // once there is enough evidence to establish a pattern.
+      const learnedAction = normalize(
+        applicationActionMemory.action ?? ""
+      );
+      const currentAction = normalize(action.title);
+
+      if (
+        applicationActionMemory.confidence !== "LOW" &&
+        learnedAction &&
+        currentAction &&
+        action.href === "/job-search"
+      ) {
+        const actionMatches =
+          currentAction === learnedAction ||
+          currentAction.includes(learnedAction) ||
+          learnedAction.includes(currentAction);
+
+        if (actionMatches) {
+          if (
+            applicationActionMemory.recommendation === "REPEAT"
+          ) {
+            score += 14;
+          } else if (
+            applicationActionMemory.recommendation === "MODIFY"
+          ) {
+            score += 4;
+          } else if (
+            applicationActionMemory.recommendation === "RETIRE"
+          ) {
+            score -= 25;
+          }
         }
       }
 
