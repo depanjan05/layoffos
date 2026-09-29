@@ -223,7 +223,7 @@ export type WeeklyPlanTaskEffect = {
   progression: RecentProgression | null;
 };
 
-function getWeeklyPlanTaskEffect(
+export function getWeeklyPlanTaskEffect(
   weeklyPlanTaskEvents: RecoveryEngineInput["weeklyPlanTaskEvents"],
   progressionEvents: RecoveryEngineInput["progressionEvents"],
 ): WeeklyPlanTaskEffect {
@@ -2497,7 +2497,7 @@ function getPipelineSignal(
   return "THIN";
 }
 
-function getProgressionSignal(
+export function getProgressionSignal(
   progression: RecentProgression | null
 ): ProgressionSignal {
   if (!progression) {
@@ -3141,7 +3141,7 @@ function getRecoveryMomentum(
   };
 }
 
-function getRecoveryOutcome(
+export function getRecoveryOutcome(
   progression: RecentProgression | null
 ): RecoveryOutcome {
   if (!progression) {
