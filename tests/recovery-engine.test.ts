@@ -1780,3 +1780,315 @@ test("application action memory aggregates only the latest repeated action", () 
   assert.equal(result.confidence, "LOW");
   assert.equal(result.recommendation, "HOLD");
 });
+
+test("final-round preparation action exposes action-specific explainability", () => {
+  const actions = getActions(
+    actionInput(),
+    "FINAL_ROUND",
+    6,
+    null,
+    "NEUTRAL",
+    "FINAL_ROUND",
+    pipelineComposition({
+      finalRounds: 2,
+      activeInterviews: 1,
+      activeApplications: 2,
+    }),
+  );
+
+  const action = actions.find(
+    (item) => item.title === "Prepare your final-round talking points",
+  );
+
+  assert.ok(action);
+  assert.ok(action.explanation);
+  assert.match(
+    action.explanation.why,
+    /final-round opportunity is active/i,
+  );
+  assert.match(
+    action.explanation.decision,
+    /strongest downstream opportunity/i,
+  );
+  assert.ok(action.explanation.signals.length <= 3);
+});
+
+test("final-round follow-up action explains its follow-up signal", () => {
+  const actions = getActions(
+    actionInput({
+      interviews: [
+        {
+          stage: "Final",
+          nextAction: "Send follow-up",
+        },
+      ],
+    }),
+    "FINAL_ROUND",
+    6,
+    null,
+    "NEUTRAL",
+    "FINAL_ROUND",
+    pipelineComposition({
+      finalRounds: 1,
+      activeInterviews: 1,
+      activeApplications: 2,
+    }),
+  );
+
+  const action = actions.find(
+    (item) => item.title === "Send your final-round follow-up",
+  );
+
+  assert.ok(action);
+  assert.ok(action.explanation);
+  assert.match(
+    action.explanation.why,
+    /follow-up or next action/i,
+  );
+  assert.match(
+    action.explanation.decision,
+    /communication step/i,
+  );
+});
+
+test("active interview action explains interview advancement", () => {
+  const actions = getActions(
+    actionInput(),
+    "INTERVIEWING",
+    6,
+    null,
+    "NEUTRAL",
+    "INTERVIEW_STAGE",
+    pipelineComposition({
+      activeInterviews: 2,
+      activeApplications: 3,
+    }),
+  );
+
+  const action = actions.find(
+    (item) => item.title === "Advance an active interview",
+  );
+
+  assert.ok(action);
+  assert.ok(action.explanation);
+  assert.match(
+    action.explanation.why,
+    /active interview/i,
+  );
+  assert.match(
+    action.explanation.decision,
+    /next pipeline stage/i,
+  );
+});
+
+test("application conversion action explains why conversion is prioritized", () => {
+  const actions = getActions(
+    actionInput(),
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "APPLICATION_STAGE",
+    pipelineComposition({
+      activeApplications: 4,
+    }),
+  );
+
+  const action = actions.find(
+    (item) => item.title === "Convert applications into conversations",
+  );
+
+  assert.ok(action);
+  assert.ok(action.explanation);
+  assert.match(
+    action.explanation.why,
+    /active application/i,
+  );
+  assert.match(
+    action.explanation.why,
+    /conversion/i,
+  );
+  assert.match(
+    action.explanation.decision,
+    /existing applications/i,
+  );
+});
+
+test("networking action explains the warm-path opportunity", () => {
+  const actions = getActions(
+    actionInput({
+      networkContacts: [
+        { status: "active" },
+        { status: "active" },
+      ],
+    }),
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "NO_PIPELINE",
+    pipelineComposition({
+      activeNetworkContacts: 2,
+    }),
+  );
+
+  const action = actions.find(
+    (item) => item.title === "Turn a network contact into an opportunity",
+  );
+
+  assert.ok(action);
+  assert.ok(action.explanation);
+  assert.match(
+    action.explanation.why,
+    /active network/i,
+  );
+  assert.match(
+    action.explanation.decision,
+    /warm relationship/i,
+  );
+});
+
+test("financial action explains runway as a recovery constraint", () => {
+  const actions = getActions(
+    actionInput(),
+    "STABILIZING",
+    1.5,
+    null,
+    "NEUTRAL",
+    "NO_PIPELINE",
+    pipelineComposition(),
+  );
+
+  const action = actions.find(
+    (item) => item.href === "/runway",
+  );
+
+  assert.ok(action);
+  assert.ok(action.explanation);
+  assert.match(
+    action.explanation.why,
+    /1\.5 months/i,
+  );
+  assert.match(
+    action.explanation.decision,
+    /financial runway/i,
+  );
+});
+
+test("accepted offer action explains transition completion", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      acceptedOffers: 1,
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  const action = actions.find(
+    (item) => item.title === "Confirm your accepted offer details",
+  );
+
+  assert.ok(action);
+  assert.ok(action.explanation);
+  assert.match(
+    action.explanation.why,
+    /accepted/i,
+  );
+  assert.match(
+    action.explanation.decision,
+    /transition/i,
+  );
+});
+
+test("setback replacement action explains lost pipeline capacity", () => {
+  const actions = getActions(
+    actionInput(),
+    "SEARCHING",
+    6,
+    null,
+    "SETBACK",
+    "SETBACK",
+    pipelineComposition({
+      activeApplications: 1,
+    }),
+  );
+
+  const action = actions.find(
+    (item) =>
+      item.title.toLowerCase().includes("replacement") ||
+      item.title.toLowerCase().includes("replace"),
+  );
+
+  assert.ok(action);
+  assert.ok(action.explanation);
+  assert.match(
+    action.explanation.why,
+    /setback|replacement/i,
+  );
+  assert.match(
+    action.explanation.decision,
+    /pipeline capacity|pipeline/i,
+  );
+});
+
+test("recovered actions expose recovery closeout reasoning", () => {
+  const actions = getActions(
+    actionInput(),
+    "RECOVERED",
+    12,
+    null,
+    "NEUTRAL",
+    "NO_PIPELINE",
+    pipelineComposition(),
+  );
+
+  assert.ok(actions.length > 0);
+
+  const action = actions[0];
+
+  assert.ok(action.explanation);
+  assert.match(
+    action.explanation.why,
+    /closeout|employment/i,
+  );
+  assert.match(
+    action.explanation.decision,
+    /recovery loop|close/i,
+  );
+});
+
+test("action explanations cap signals and remove duplicates", () => {
+  const actions = getActions(
+    actionInput(),
+    "FINAL_ROUND",
+    6,
+    null,
+    "NEUTRAL",
+    "FINAL_ROUND",
+    pipelineComposition({
+      finalRounds: 2,
+      activeInterviews: 2,
+      activeApplications: 4,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  for (const action of actions) {
+    assert.ok(action.explanation);
+
+    const signals = action.explanation.signals;
+
+    assert.ok(signals.length <= 3);
+    assert.equal(new Set(signals).size, signals.length);
+
+    assert.ok(action.explanation.why.length > 0);
+    assert.ok(action.explanation.decision.length > 0);
+  }
+});
