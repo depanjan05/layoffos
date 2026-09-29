@@ -77,7 +77,7 @@ export async function GET() {
 
     supabase
       .from("events")
-      .select("event_type, entity_type, metadata")
+      .select("event_type, entity_type, metadata, created_at")
       .eq("user_id", user.id)
       .in("entity_type", [
         "application_progression",
@@ -141,12 +141,14 @@ export async function GET() {
             ? (event.metadata as {
                 title?: string;
                 href?: string;
+                completed_at?: string;
               })
             : {};
 
         return {
           title: metadata.title ?? null,
           href: metadata.href ?? null,
+          completedAt: metadata.completed_at ?? null,
         };
       })
       .filter((action) => action.title && action.href),
@@ -155,6 +157,7 @@ export async function GET() {
       (event) => ({
         eventType: event.event_type,
         entityType: event.entity_type,
+        occurredAt: event.created_at ?? null,
         metadata:
           event.metadata &&
           typeof event.metadata === "object" &&

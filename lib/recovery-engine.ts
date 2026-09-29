@@ -88,6 +88,21 @@ export type RecoveryRecalibration = {
   nextFocus: RecoveryPriority;
 };
 
+export type RecoveryActionEffect = {
+  status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
+  headline: string;
+  summary: string;
+  evidence: string[];
+  recommendation: string;
+};
+
+export type ActionRecalibration = {
+  actionTitle: string | null;
+  decision: "REPEAT" | "MODIFY" | "RETIRE" | "HOLD";
+  reason: string;
+  evidence: string[];
+};
+
 export type RecoveryTransition = {
   nextState: RecoveryState;
   label: string;
@@ -142,11 +157,13 @@ export type RecoveryEngineInput = {
   completedActions?: Array<{
     title?: string | null;
     href?: string | null;
+    completedAt?: string | null;
   }>;
 
   progressionEvents?: Array<{
     eventType?: string | null;
     entityType?: string | null;
+    occurredAt?: string | null;
     metadata?: Record<string, unknown> | null;
   }>;
 };
@@ -157,6 +174,7 @@ export type RecentProgression = {
   role: string;
   previousStage: string;
   newStage: string;
+  occurredAt: string | null;
 };
 
 type ProgressionSignal =
@@ -184,6 +202,206 @@ export type PipelineComposition = {
   activeNetworkContacts: number;
 };
 
+
+function getRecoveryActionEffect(
+  completedActions: RecoveryEngineInput["completedActions"] = [],
+  progressionEvents: RecoveryEngineInput["progressionEvents"] = [],
+): RecoveryActionEffect {
+  const completed = completedActions
+    .filter(
+      (action) =>
+        typeof action.title === "string" &&
+        typeof action.completedAt === "string",
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.completedAt as string).getTime() -
+        new Date(a.completedAt as string).getTime(),
+    );
+
+  if (completed.length === 0) {
+    return {
+      status: "UNKNOWN",
+      headline: "No completed recovery action to evaluate",
+      summary:
+        "The system does not yet have a completed recovery action with a usable timestamp to compare against pipeline movement.",
+      evidence: [],
+      recommendation: "Complete a recommended recovery action and track what happens next.",
+    };
+  }
+
+  const latestAction = completed[0];
+  const actionTime = new Date(latestAction.completedAt as string).getTime();
+
+  if (!Number.isFinite(actionTime)) {
+    return {
+      status: "UNKNOWN",
+      headline: "Action timing is unavailable",
+      summary:
+        "A completed recovery action exists, but its timestamp cannot be used reliably for temporal comparison.",
+      evidence: [latestAction.title as string],
+      recommendation: "Continue completing tracked actions so future outcomes can be evaluated.",
+    };
+  }
+
+  const relatedProgressions = progressionEvents
+    .filter(
+      (event) =>
+        (event.eventType === "application_progression" ||
+          event.eventType === "interview_progression") &&
+        typeof event.occurredAt === "string",
+    )
+    .map((event) => ({
+      event,
+      timestamp: new Date(event.occurredAt as string).getTime(),
+    }))
+    .filter(
+      (item) =>
+        Number.isFinite(item.timestamp) &&
+        item.timestamp >= actionTime &&
+        item.timestamp <= actionTime + 14 * 24 * 60 * 60 * 1000,
+    )
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  if (relatedProgressions.length === 0) {
+    return {
+      status: "UNKNOWN",
+      headline: "No pipeline change followed the action yet",
+      summary:
+        "The latest completed action has not been followed by a recorded application or interview progression within the evaluation window.",
+      evidence: [
+        `Completed: ${latestAction.title}`,
+        `Completed at: ${latestAction.completedAt}`,
+      ],
+      recommendation:
+        "Hold the action for now and continue tracking pipeline movement before changing the recommendation.",
+    };
+  }
+
+  const progression = relatedProgressions[0].event;
+  const metadata = progression.metadata ?? {};
+  const previousStage =
+    typeof metadata.previousStage === "string"
+      ? metadata.previousStage
+      : "previous stage";
+  const newStage =
+    typeof metadata.newStage === "string"
+      ? metadata.newStage
+      : "new stage";
+  const company =
+    typeof metadata.company === "string" ? metadata.company : "the company";
+  const role =
+    typeof metadata.role === "string" ? metadata.role : "the role";
+
+  const signal = getProgressionSignal({
+    type:
+      progression.eventType === "application_progression"
+        ? "application"
+        : "interview",
+    company,
+    role,
+    previousStage,
+    newStage,
+    occurredAt: progression.occurredAt ?? null,
+  });
+
+  if (signal === "ADVANCING") {
+    return {
+      status: "POSITIVE",
+      headline: "Action was followed by pipeline progression",
+      summary:
+        `The completed action was followed by ${company} moving ${role} from ${previousStage} to ${newStage}. This is a positive temporal signal, not proof of causation.`,
+      evidence: [
+        `Action: ${latestAction.title}`,
+        `Completed: ${latestAction.completedAt}`,
+        `Progression: ${previousStage} → ${newStage}`,
+        `Company: ${company}`,
+      ],
+      recommendation:
+        "Repeat this type of action when the same recovery situation appears again.",
+    };
+  }
+
+  if (signal === "SETBACK" || signal === "CLOSED") {
+    return {
+      status: "NEGATIVE",
+      headline: "Action was followed by a pipeline setback",
+      summary:
+        `The completed action was followed by ${company} moving ${role} from ${previousStage} to ${newStage}. This is a negative temporal signal, not proof that the action caused the setback.`,
+      evidence: [
+        `Action: ${latestAction.title}`,
+        `Completed: ${latestAction.completedAt}`,
+        `Progression: ${previousStage} → ${newStage}`,
+        `Company: ${company}`,
+      ],
+      recommendation:
+        "Modify the action or its execution before repeating it in the same situation.",
+    };
+  }
+
+  return {
+    status: "NEUTRAL",
+    headline: "Action was followed by a neutral pipeline change",
+    summary:
+      `The completed action was followed by a recorded change from ${previousStage} to ${newStage}, but the change does not provide a strong positive or negative signal.`,
+    evidence: [
+      `Action: ${latestAction.title}`,
+      `Completed: ${latestAction.completedAt}`,
+      `Progression: ${previousStage} → ${newStage}`,
+      `Company: ${company}`,
+    ],
+    recommendation:
+      "Hold the action and collect more evidence before changing the recommendation.",
+  };
+}
+
+function getActionRecalibration(
+  effect: RecoveryActionEffect,
+): ActionRecalibration {
+  const actionTitle =
+    effect.evidence
+      .find((item) => item.startsWith("Action: "))
+      ?.replace("Action: ", "") ?? null;
+
+  if (effect.status === "POSITIVE") {
+    return {
+      actionTitle,
+      decision: "REPEAT",
+      reason:
+        "The action was followed by a positive progression signal, so it should remain in the recovery playbook.",
+      evidence: effect.evidence,
+    };
+  }
+
+  if (effect.status === "NEGATIVE") {
+    return {
+      actionTitle,
+      decision: "MODIFY",
+      reason:
+        "The action was followed by a setback signal. The evidence supports changing the approach rather than automatically repeating it.",
+      evidence: effect.evidence,
+    };
+  }
+
+  if (effect.status === "NEUTRAL") {
+    return {
+      actionTitle,
+      decision: "HOLD",
+      reason:
+        "The available progression signal is not strong enough to justify repeating or retiring the action.",
+      evidence: effect.evidence,
+    };
+  }
+
+  return {
+    actionTitle,
+    decision: "HOLD",
+    reason:
+      "There is not yet enough temporal evidence to determine whether the completed action should be repeated, modified, or retired.",
+    evidence: effect.evidence,
+  };
+}
+
 export type RecoveryEngineResult = {
   state: RecoveryState;
   stateLabel: string;
@@ -193,6 +411,8 @@ export type RecoveryEngineResult = {
   momentum: RecoveryMomentum;
   outcome: RecoveryOutcome;
   recalibration: RecoveryRecalibration;
+  actionEffect: RecoveryActionEffect;
+  actionRecalibration: ActionRecalibration;
   priorities: RecoveryPriority[];
   actions: RecoveryAction[];
   transition: RecoveryTransition;
@@ -2668,6 +2888,7 @@ function getRecentProgression(
       role,
       previousStage,
       newStage,
+      occurredAt: event.occurredAt ?? null,
     };
   }
 
@@ -2720,6 +2941,13 @@ export function calculateRecovery(
     pipelineComposition
   );
 
+  const actionEffect = getRecoveryActionEffect(
+    input.completedActions ?? [],
+    input.progressionEvents ?? []
+  );
+
+  const actionRecalibration = getActionRecalibration(actionEffect);
+
   const readiness = getRecoveryReadiness(
     state,
     pipelineComposition
@@ -2734,6 +2962,8 @@ export function calculateRecovery(
     momentum,
     outcome,
     recalibration,
+    actionEffect,
+    actionRecalibration,
     priorities: getPriorities(
       input,
       state,

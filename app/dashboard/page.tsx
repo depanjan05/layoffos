@@ -52,6 +52,19 @@ type RecoveryEngineResult = {
       | "INTERVIEWS"
       | "DIRECTION";
   };
+  actionEffect: {
+    status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
+    headline: string;
+    summary: string;
+    evidence: string[];
+    recommendation: string;
+  };
+  actionRecalibration: {
+    actionTitle: string | null;
+    decision: "REPEAT" | "MODIFY" | "RETIRE" | "HOLD";
+    reason: string;
+    evidence: string[];
+  };
   situation: {
     headline: string;
     summary: string;
@@ -1329,6 +1342,92 @@ export default function DashboardPage() {
                     <p className="mt-4 text-xs font-medium leading-5 text-[#66665f]">
                       {recoveryEngine.outcome.recommendation}
                     </p>
+                  </div>
+
+                  <div className="mt-5 border-t border-[#deded8] pt-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                        Action effect
+                      </p>
+
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
+                        {recoveryEngine.actionEffect.status}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                      {recoveryEngine.actionEffect.headline}
+                    </p>
+
+                    <p className="mt-2 text-sm leading-5 text-[#66665f]">
+                      {recoveryEngine.actionEffect.summary}
+                    </p>
+
+                    {recoveryEngine.actionEffect.evidence.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Action evidence
+                        </p>
+
+                        <ul className="mt-2 space-y-1">
+                          {recoveryEngine.actionEffect.evidence.map((item) => (
+                            <li
+                              key={item}
+                              className="text-xs leading-5 text-[#66665f]"
+                            >
+                              • {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <p className="mt-4 text-xs font-medium leading-5 text-[#66665f]">
+                      {recoveryEngine.actionEffect.recommendation}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 border-t border-[#deded8] pt-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                        Action recalibration
+                      </p>
+
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
+                        {recoveryEngine.actionRecalibration.decision}
+                      </span>
+                    </div>
+
+                    {recoveryEngine.actionRecalibration.actionTitle && (
+                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                        {recoveryEngine.actionRecalibration.actionTitle}
+                      </p>
+                    )}
+
+                    <p className="mt-2 text-sm leading-5 text-[#66665f]">
+                      {recoveryEngine.actionRecalibration.reason}
+                    </p>
+
+                    {recoveryEngine.actionRecalibration.evidence.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Recalibration evidence
+                        </p>
+
+                        <ul className="mt-2 space-y-1">
+                          {recoveryEngine.actionRecalibration.evidence.map(
+                            (item) => (
+                              <li
+                                key={item}
+                                className="text-xs leading-5 text-[#66665f]"
+                              >
+                                • {item}
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-5 border-t border-[#deded8] pt-5">
