@@ -580,6 +580,13 @@ export default function DashboardPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const saved = localStorage.getItem("layoffos:last-completed-recovery-action");
+    if (saved) {
+      setLastCompletedRecoveryAction(saved);
+    }
+  }, []);
+
   async function completeRecoveryAction(
     action: RecoveryEngineResult["actions"][number]
   ) {
@@ -613,6 +620,10 @@ export default function DashboardPage() {
       }
 
       setLastCompletedRecoveryAction(action.title);
+      localStorage.setItem(
+        "layoffos:last-completed-recovery-action",
+        action.title,
+      );
 
       setRecoveryEngine((current) => {
         if (!current) {
@@ -1727,7 +1738,7 @@ export default function DashboardPage() {
                     </p>
 
                     <p className="mt-1 text-lg font-bold">
-                      {recoveryEngine.actions.length} actions
+                      {recoveryEngine.actions.length} {recoveryEngine.actions.length === 1 ? "action" : "actions"}
                     </p>
                   </div>
                 </div>
@@ -1818,9 +1829,13 @@ export default function DashboardPage() {
                               disabled={isCompleting}
                               className="mt-4 w-full rounded-xl bg-white px-3 py-2.5 text-xs font-bold text-[#111] transition hover:bg-[#eeeeea] disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              {isCompleting
-                                ? "Marking complete..."
-                                : "Mark complete"}
+                              {isCompleting ? (
+                                "Saving completion..."
+                              ) : lastCompletedRecoveryAction === action.title ? (
+                                "✓ Completed"
+                              ) : (
+                                "Mark complete"
+                              )}
                             </button>
                           </div>
                         );
