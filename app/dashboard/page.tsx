@@ -14,6 +14,11 @@ type RecoveryEngineResult = {
     summary: string;
     risk: string | null;
   };
+  change: {
+    headline: string;
+    summary: string;
+    implication: string;
+  } | null;
   priorities: string[];
   actions: {
     title: string;
@@ -986,6 +991,26 @@ export default function DashboardPage() {
                     <p className="mt-3 text-sm leading-6 text-[#66665f]">
                       {recoveryEngine.situation.summary}
                     </p>
+
+                    {recoveryEngine.change && (
+                      <div className="mt-5 border-t border-[#deded8] pt-5">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                          What changed
+                        </p>
+
+                        <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                          {recoveryEngine.change.headline}
+                        </p>
+
+                        <p className="mt-2 text-sm leading-5 text-[#66665f]">
+                          {recoveryEngine.change.summary}
+                        </p>
+
+                        <p className="mt-3 text-xs font-medium leading-5 text-[#888880]">
+                          Why it matters: {recoveryEngine.change.implication}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {recoveryEngine.situation.risk && (

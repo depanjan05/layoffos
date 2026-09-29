@@ -28,6 +28,12 @@ export type RecoverySituation = {
   risk: string | null;
 };
 
+export type RecoveryChange = {
+  headline: string;
+  summary: string;
+  implication: string;
+};
+
 
 export type RecoveryTransition = {
   nextState: RecoveryState;
@@ -137,6 +143,7 @@ export type RecoveryEngineResult = {
   pipelineSignal: PipelineSignal;
   pipelineComposition: PipelineComposition;
   situation: RecoverySituation;
+  change: RecoveryChange | null;
 };
 
 function normalize(value?: string | null) {
@@ -1769,6 +1776,59 @@ function getProgressionSignal(
   return "NEUTRAL";
 }
 
+function getRecoveryChange(
+  progression: RecentProgression | null
+): RecoveryChange | null {
+  if (!progression) {
+    return null;
+  }
+
+  const signal = getProgressionSignal(progression);
+  const newStage = normalize(progression.newStage);
+
+  if (newStage === "accepted") {
+    return {
+      headline: `${progression.company} moved from ${progression.previousStage} to Accepted.`,
+      summary:
+        "The offer has been accepted and the opportunity has moved into the transition stage.",
+      implication:
+        "The focus now shifts from progressing the opportunity to confirming the transition details and updating employment status when employment resumes.",
+    };
+  }
+
+  if (signal === "ADVANCING") {
+    return {
+      headline: `${progression.company} moved from ${progression.previousStage} to ${progression.newStage}.`,
+      summary:
+        `${progression.type === "interview" ? "The interview" : "The application"} has advanced to a later stage in the recovery pipeline.`,
+      implication:
+        "The opportunity is gaining momentum, so preparation and follow-up should keep pace with the new stage.",
+    };
+  }
+
+  if (signal === "SETBACK") {
+    return {
+      headline: `${progression.company} moved from ${progression.previousStage} to Rejected.`,
+      summary:
+        `${progression.type === "interview" ? "The interview" : "The application"} has left the active recovery pipeline.`,
+      implication:
+        "Pipeline capacity was lost, so the next priority is to capture the signal and replace the opportunity.",
+    };
+  }
+
+  if (signal === "CLOSED") {
+    return {
+      headline: `${progression.company} moved from ${progression.previousStage} to Withdrawn.`,
+      summary:
+        `${progression.type === "interview" ? "The interview" : "The application"} is no longer an active recovery opportunity.`,
+      implication:
+        "The closed path should no longer consume recovery attention while active opportunities remain in focus.",
+    };
+  }
+
+  return null;
+}
+
 function getRecentProgression(
   input: RecoveryEngineInput
 ): RecentProgression | null {
@@ -1836,6 +1896,7 @@ export function calculateRecovery(
     pipelineComposition,
     recentProgression
   );
+  const change = getRecoveryChange(recentProgression);
 
   return {
     state,
@@ -1862,5 +1923,6 @@ export function calculateRecovery(
     pipelineSignal,
     pipelineComposition,
     situation,
+    change,
   };
 }
