@@ -189,6 +189,15 @@ export type RecoveryEngineInput = {
     dueDate?: string | null;
     completedAt?: string | null;
   }>;
+
+  weeklyPlanTaskEvents?: Array<{
+    weeklyPlanId?: string | null;
+    taskId?: string | null;
+    title?: string | null;
+    category?: string | null;
+    href?: string | null;
+    completedAt?: string | null;
+  }>;
 };
 
 export type RecentProgression = {
@@ -199,6 +208,212 @@ export type RecentProgression = {
   newStage: string;
   occurredAt: string | null;
 };
+
+
+export type WeeklyPlanTaskEffect = {
+  status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
+  headline: string;
+  summary: string;
+  evidence: string[];
+  recommendation: string;
+  taskId: string | null;
+  title: string | null;
+  category: string | null;
+  completedAt: string | null;
+  progression: RecentProgression | null;
+};
+
+function getWeeklyPlanTaskEffect(
+  weeklyPlanTaskEvents: RecoveryEngineInput["weeklyPlanTaskEvents"],
+  progressionEvents: RecoveryEngineInput["progressionEvents"],
+): WeeklyPlanTaskEffect {
+  const completedTasks = (weeklyPlanTaskEvents ?? [])
+    .filter(
+      (task) =>
+        typeof task.title === "string" &&
+        task.title.length > 0 &&
+        typeof task.completedAt === "string" &&
+        task.completedAt.length > 0,
+    )
+    .sort((a, b) => {
+      const aTime = new Date(a.completedAt as string).getTime();
+      const bTime = new Date(b.completedAt as string).getTime();
+      return bTime - aTime;
+    });
+
+  const latestTask = completedTasks[0];
+
+  if (!latestTask) {
+    return {
+      status: "UNKNOWN",
+      headline: "No weekly plan execution outcome yet",
+      summary:
+        "Complete a weekly recovery task and the engine will look for subsequent pipeline movement.",
+      evidence: [],
+      recommendation: "Complete a tracked weekly recovery task.",
+      taskId: null,
+      title: null,
+      category: null,
+      completedAt: null,
+      progression: null,
+    };
+  }
+
+  const completedAt = new Date(latestTask.completedAt as string);
+  const fourteenDaysLater = new Date(completedAt);
+  fourteenDaysLater.setDate(fourteenDaysLater.getDate() + 14);
+
+  const relevantEntityType =
+    latestTask.href === "/job-search"
+      ? "application_progression"
+      : latestTask.href === "/interviews"
+        ? "interview_progression"
+        : null;
+
+  const relatedProgression = relevantEntityType
+    ? (progressionEvents ?? [])
+        .filter(
+          (event) => event.entityType === relevantEntityType
+        )
+        .map((event) => {
+          const metadata = event.metadata ?? {};
+          const occurredAt = event.occurredAt ?? null;
+
+          return {
+            event,
+            occurredAt,
+            company:
+              typeof metadata.company === "string"
+                ? metadata.company
+                : "",
+            role:
+              typeof metadata.role === "string"
+                ? metadata.role
+                : "",
+            previousStage:
+              typeof metadata.previousStage === "string"
+                ? metadata.previousStage
+                : "",
+            newStage:
+              typeof metadata.newStage === "string"
+                ? metadata.newStage
+                : "",
+          };
+        })
+        .filter((item) => {
+          if (!item.occurredAt) return false;
+
+          const occurredAt = new Date(item.occurredAt);
+
+          return (
+            occurredAt > completedAt &&
+            occurredAt <= fourteenDaysLater
+          );
+        })
+        .sort(
+          (a, b) =>
+            new Date(a.occurredAt as string).getTime() -
+            new Date(b.occurredAt as string).getTime(),
+        )
+    : [];
+
+  const progression = relatedProgression[0];
+
+  if (!progression) {
+    return {
+      status: "UNKNOWN",
+      headline: "No pipeline movement followed the weekly plan task",
+      summary:
+        "The completed plan task has no tracked application or interview stage change within 14 days.",
+      evidence: [
+        `Completed: ${latestTask.title}`,
+        "No subsequent progression event was recorded within 14 days.",
+      ],
+      recommendation:
+        "Hold this execution pattern until more outcome data is available.",
+      taskId: latestTask.taskId ?? null,
+      title: latestTask.title ?? null,
+      category: latestTask.category ?? null,
+      completedAt: latestTask.completedAt ?? null,
+      progression: null,
+    };
+  }
+
+  const recentProgression: RecentProgression = {
+    type:
+      progression.event.entityType === "interview_progression"
+        ? "interview"
+        : "application",
+    company: progression.company,
+    role: progression.role,
+    previousStage: progression.previousStage,
+    newStage: progression.newStage,
+    occurredAt: progression.occurredAt,
+  };
+
+  const signal = getProgressionSignal(recentProgression);
+
+  if (signal === "ADVANCING") {
+    return {
+      status: "POSITIVE",
+      headline: "Weekly plan task was followed by progression",
+      summary:
+        "A tracked application or interview stage advanced after the completed recovery-plan task.",
+      evidence: [
+        `Completed: ${latestTask.title}`,
+        `${recentProgression.previousStage} → ${recentProgression.newStage}`,
+        "Progression occurred within 14 days of task completion.",
+      ],
+      recommendation:
+        "Repeat this plan execution pattern while continuing to measure downstream outcomes.",
+      taskId: latestTask.taskId ?? null,
+      title: latestTask.title ?? null,
+      category: latestTask.category ?? null,
+      completedAt: latestTask.completedAt ?? null,
+      progression: recentProgression,
+    };
+  }
+
+  if (signal === "SETBACK" || signal === "CLOSED") {
+    return {
+      status: "NEGATIVE",
+      headline: "Weekly plan task was followed by a setback",
+      summary:
+        "A tracked pipeline setback followed the completed recovery-plan task.",
+      evidence: [
+        `Completed: ${latestTask.title}`,
+        `${recentProgression.previousStage} → ${recentProgression.newStage}`,
+        "The setback occurred within 14 days of task completion.",
+      ],
+      recommendation:
+        "Modify the execution pattern and continue gathering downstream evidence.",
+      taskId: latestTask.taskId ?? null,
+      title: latestTask.title ?? null,
+      category: latestTask.category ?? null,
+      completedAt: latestTask.completedAt ?? null,
+      progression: recentProgression,
+    };
+  }
+
+  return {
+    status: "NEUTRAL",
+    headline: "Weekly plan task was followed by pipeline movement",
+    summary:
+      "A tracked pipeline stage changed after the completed recovery-plan task, but the movement was not clearly directional.",
+    evidence: [
+      `Completed: ${latestTask.title}`,
+      `${recentProgression.previousStage} → ${recentProgression.newStage}`,
+      "Progression occurred within 14 days of task completion.",
+    ],
+    recommendation:
+      "Hold the execution pattern while more outcome data accumulates.",
+    taskId: latestTask.taskId ?? null,
+    title: latestTask.title ?? null,
+    category: latestTask.category ?? null,
+    completedAt: latestTask.completedAt ?? null,
+    progression: recentProgression,
+  };
+}
 
 type ProgressionSignal =
   | "ADVANCING"
@@ -639,6 +854,7 @@ export type RecoveryEngineResult = {
   actionEffect: RecoveryActionEffect;
   actionRecalibration: ActionRecalibration;
   actionMemory: ActionMemory;
+  weeklyPlanTaskEffect: WeeklyPlanTaskEffect;
   priorities: RecoveryPriority[];
   actions: RecoveryAction[];
   transition: RecoveryTransition;
@@ -3246,6 +3462,11 @@ export function calculateRecovery(
     input.progressionEvents ?? []
   );
 
+  const weeklyPlanTaskEffect = getWeeklyPlanTaskEffect(
+    input.weeklyPlanTaskEvents ?? [],
+    input.progressionEvents ?? []
+  );
+
   const readiness = getRecoveryReadiness(
     state,
     pipelineComposition
@@ -3268,6 +3489,7 @@ export function calculateRecovery(
     actionEffect,
     actionRecalibration,
     actionMemory,
+    weeklyPlanTaskEffect,
     priorities: getPriorities(
       input,
       state,

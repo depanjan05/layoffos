@@ -267,9 +267,37 @@ export default function PlanPage() {
               .map((task) => task.title)
           );
 
-          const completedIds = baseTasks
-            .filter((task) => completedTitles.has(task.title))
-            .map((task) => task.id);
+          const adaptiveTaskIds: Record<string, string> = {
+            "Complete your first recovery actions": "plan-3",
+            "Define your immediate search direction": "plan-6",
+            "Review your financial runway": "plan-3",
+            "Choose your priority roles": "plan-6",
+            "Build targeted application opportunities": "plan-3",
+            "Create referral conversations": "plan-6",
+            "Convert pending applications into conversations": "plan-7",
+            "Prepare your active interviews": "plan-3",
+            "Advance an active interview": "plan-6",
+            "Close every interview loop": "plan-9",
+            "Prepare for your final round": "plan-3",
+            "Strengthen your final-round position": "plan-6",
+            "Prepare for the decision": "plan-9",
+            "Review your offer details": "plan-3",
+            "Complete your offer transition details": "plan-6",
+            "Keep one backup opportunity warm": "plan-9",
+            "Complete your recovery closeout": "plan-3",
+            "Archive your active search": "plan-6",
+            "Review the recovery journey": "plan-9",
+          };
+
+          const completedIds = Array.from(completedTitles)
+            .map((title) => {
+              const baseTask = baseTasks.find(
+                (task) => task.title === title
+              );
+
+              return baseTask?.id ?? adaptiveTaskIds[title];
+            })
+            .filter((id): id is string => Boolean(id));
 
           setCompleted(completedIds);
           localStorage.setItem(
@@ -739,6 +767,8 @@ export default function PlanPage() {
     const task = personalizedTasks.find((item) => item.id === id);
     if (!task) return;
 
+    const completedAt = new Date().toISOString();
+
     const { data: existingTask } = await supabase
       .from("weekly_plan_tasks")
       .select("id")
@@ -753,8 +783,32 @@ export default function PlanPage() {
           completed: !isDone,
         })
         .eq("id", existingTask.id);
+
+      if (!isDone) {
+        const { error } = await supabase.from("events").insert({
+          user_id: user.id,
+          event_type: "weekly_plan_task_completed",
+          entity_type: "weekly_plan_task",
+          entity_id: existingTask.id,
+          metadata: {
+            weeklyPlanId: weeklyPlan.id,
+            taskId: task.id,
+            title: task.title,
+            category: task.category,
+            href: task.href,
+            completedAt,
+          },
+        });
+
+        if (error) {
+          console.error(
+            "Could not log weekly plan task completion:",
+            error
+          );
+        }
+      }
     } else {
-      await supabase
+      const { data: insertedTask, error } = await supabase
         .from("weekly_plan_tasks")
         .insert({
           weekly_plan_id: weeklyPlan.id,
@@ -762,7 +816,40 @@ export default function PlanPage() {
           category: task.category,
           priority: "normal",
           completed: !isDone,
+        })
+        .select("id")
+        .single();
+
+      if (!isDone && insertedTask && !error) {
+        const { error: eventError } = await supabase.from("events").insert({
+          user_id: user.id,
+          event_type: "weekly_plan_task_completed",
+          entity_type: "weekly_plan_task",
+          entity_id: insertedTask.id,
+          metadata: {
+            weeklyPlanId: weeklyPlan.id,
+            taskId: task.id,
+            title: task.title,
+            category: task.category,
+            href: task.href,
+            completedAt,
+          },
         });
+
+        if (eventError) {
+          console.error(
+            "Could not log weekly plan task completion:",
+            eventError
+          );
+        }
+      }
+
+      if (error) {
+        console.error(
+          "Could not save weekly plan task:",
+          error
+        );
+      }
     }
   }
 

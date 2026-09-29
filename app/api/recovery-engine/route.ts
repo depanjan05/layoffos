@@ -28,6 +28,7 @@ export async function GET() {
     completedActionsResult,
     progressionEventsResult,
     applicationActionEventsResult,
+    weeklyPlanTaskEventsResult,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -93,6 +94,15 @@ export async function GET() {
       .eq("user_id", user.id)
       .eq("event_type", "application_action_completed")
       .eq("entity_type", "application_action")
+      .order("created_at", { ascending: false })
+      .limit(100),
+
+    supabase
+      .from("events")
+      .select("event_type, entity_type, metadata, created_at")
+      .eq("user_id", user.id)
+      .eq("event_type", "weekly_plan_task_completed")
+      .eq("entity_type", "weekly_plan_task")
       .order("created_at", { ascending: false })
       .limit(100),
   ]);
@@ -192,6 +202,34 @@ export async function GET() {
         };
       }),
 
+    weeklyPlanTaskEvents: (weeklyPlanTaskEventsResult.data ?? [])
+      .map((event) => {
+        const metadata =
+          event.metadata &&
+          typeof event.metadata === "object" &&
+          !Array.isArray(event.metadata)
+            ? (event.metadata as {
+                weeklyPlanId?: string;
+                taskId?: string;
+                title?: string;
+                category?: string;
+                href?: string;
+                completedAt?: string;
+              })
+            : {};
+
+        return {
+          weeklyPlanId: metadata.weeklyPlanId ?? null,
+          taskId: metadata.taskId ?? null,
+          title: metadata.title ?? null,
+          category: metadata.category ?? null,
+          href: metadata.href ?? null,
+          completedAt:
+            metadata.completedAt ??
+            event.created_at ??
+            null,
+        };
+      }),
     progressionEvents: (progressionEventsResult.data ?? []).map(
       (event) => ({
         eventType: event.event_type,

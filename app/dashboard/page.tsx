@@ -78,6 +78,25 @@ type RecoveryEngineResult = {
     recommendation: "REPEAT" | "MODIFY" | "RETIRE" | "HOLD";
     evidence: string[];
   };
+  weeklyPlanTaskEffect: {
+    status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
+    headline: string;
+    summary: string;
+    evidence: string[];
+    recommendation: string;
+    taskId: string | null;
+    title: string | null;
+    category: string | null;
+    completedAt: string | null;
+    progression: {
+      type: "application" | "interview";
+      company: string;
+      role: string;
+      previousStage: string;
+      newStage: string;
+      occurredAt: string | null;
+    } | null;
+  };
   situation: {
     headline: string;
     summary: string;
@@ -1544,6 +1563,62 @@ export default function DashboardPage() {
                             recoveryEngine.actionMemory.positiveRate * 100
                           )}
                           %
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* WEEKLY PLAN EXECUTION */}
+                <div className="mt-6 border-t border-[#deded8] pt-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Weekly plan execution
+                        </p>
+
+                        <span className="text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                          {recoveryEngine.weeklyPlanTaskEffect.status === "UNKNOWN"
+                            ? "AWAITING SIGNAL"
+                            : recoveryEngine.weeklyPlanTaskEffect.status}
+                        </span>
+                      </div>
+
+                      <h3 className="mt-2 text-base font-bold leading-5 text-[#111]">
+                        {recoveryEngine.weeklyPlanTaskEffect.title ??
+                          "No completed weekly plan task yet"}
+                      </h3>
+
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-[#999990]">
+                        {recoveryEngine.weeklyPlanTaskEffect.category ??
+                          "Execution"}
+                        {recoveryEngine.weeklyPlanTaskEffect.completedAt
+                          ? ` · completed ${new Date(
+                              recoveryEngine.weeklyPlanTaskEffect.completedAt,
+                            ).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}`
+                          : ""}
+                      </p>
+                    </div>
+
+                    <div className="max-w-xl sm:text-right">
+                      <p className="text-sm leading-6 text-[#66665f]">
+                        {recoveryEngine.weeklyPlanTaskEffect.status === "UNKNOWN"
+                          ? "No downstream interview or application movement has been recorded yet."
+                          : recoveryEngine.weeklyPlanTaskEffect.summary}
+                      </p>
+
+                      {recoveryEngine.weeklyPlanTaskEffect.progression && (
+                        <p className="mt-2 text-xs font-semibold text-[#55554f]">
+                          {recoveryEngine.weeklyPlanTaskEffect.progression.previousStage}{" "}
+                          →{" "}
+                          {recoveryEngine.weeklyPlanTaskEffect.progression.newStage}
+                          {recoveryEngine.weeklyPlanTaskEffect.progression.company
+                            ? ` · ${recoveryEngine.weeklyPlanTaskEffect.progression.company}`
+                            : ""}
                         </p>
                       )}
                     </div>
