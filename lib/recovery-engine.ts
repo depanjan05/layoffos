@@ -60,6 +60,18 @@ export type PipelineHealth = {
   signals: string[];
 };
 
+
+export type RecoveryMomentum = {
+  status: "ACCELERATING" | "STEADY" | "STALLING" | "REVERSING";
+  headline: string;
+  summary: string;
+  direction: "FORWARD" | "FLAT" | "BACKWARD";
+  recentAdvances: number;
+  recentSetbacks: number;
+  recentClosures: number;
+  signals: string[];
+};
+
 export type RecoveryTransition = {
   nextState: RecoveryState;
   label: string;
@@ -162,6 +174,7 @@ export type RecoveryEngineResult = {
   stateReason: string;
   runwayMonths: number | null;
   pipelineHealth: PipelineHealth;
+  momentum: RecoveryMomentum;
   priorities: RecoveryPriority[];
   actions: RecoveryAction[];
   transition: RecoveryTransition;
@@ -2257,6 +2270,148 @@ function getRecoveryReadiness(
   };
 }
 
+function getRecoveryMomentum(
+  progression: RecentProgression | null,
+  pipelineComposition: PipelineComposition
+): RecoveryMomentum {
+  const recentAdvances =
+    progression && getProgressionSignal(progression) === "ADVANCING"
+      ? 1
+      : 0;
+
+  const recentSetbacks =
+    progression && getProgressionSignal(progression) === "SETBACK"
+      ? 1
+      : 0;
+
+  const recentClosures =
+    progression && getProgressionSignal(progression) === "CLOSED"
+      ? 1
+      : 0;
+
+  const signals: string[] = [];
+
+  if (recentAdvances > 0) {
+    signals.push(
+      `${recentAdvances} recent progression signal moving forward`
+    );
+  }
+
+  if (recentSetbacks > 0) {
+    signals.push(
+      `${recentSetbacks} recent setback signal`
+    );
+  }
+
+  if (recentClosures > 0) {
+    signals.push(
+      `${recentClosures} recent opportunity closure`
+    );
+  }
+
+  if (pipelineComposition.offers > 0 || pipelineComposition.acceptedOffers > 0) {
+    signals.push("Downstream opportunity exists in the pipeline.");
+  } else if (pipelineComposition.finalRounds > 0) {
+    signals.push("A final-round opportunity is active.");
+  } else if (pipelineComposition.activeInterviews > 0) {
+    signals.push("Active interviews are currently in progress.");
+  } else if (pipelineComposition.activeApplications > 0) {
+    signals.push("Active applications are currently in progress.");
+  }
+
+  if (recentAdvances > 0 && recentSetbacks === 0) {
+    return {
+      status: "ACCELERATING",
+      headline: "Recovery momentum is moving forward.",
+      summary:
+        "Recent progression evidence shows the recovery pipeline is advancing rather than losing capacity.",
+      direction: "FORWARD",
+      recentAdvances,
+      recentSetbacks,
+      recentClosures,
+      signals,
+    };
+  }
+
+  if (recentSetbacks > 0 || recentClosures > 0) {
+    if (
+      recentSetbacks > recentAdvances ||
+      recentClosures > recentAdvances
+    ) {
+      return {
+        status: "REVERSING",
+        headline: "Recovery momentum is moving backward.",
+        summary:
+          "Recent pipeline evidence shows more opportunity loss than forward progression.",
+        direction: "BACKWARD",
+        recentAdvances,
+        recentSetbacks,
+        recentClosures,
+        signals,
+      };
+    }
+
+    return {
+      status: "STALLING",
+      headline: "Recovery momentum is losing pace.",
+      summary:
+        "Recent pipeline changes include opportunity loss, but the evidence does not yet indicate a clear reversal.",
+      direction: "FLAT",
+      recentAdvances,
+      recentSetbacks,
+      recentClosures,
+      signals,
+    };
+  }
+
+  if (
+    pipelineComposition.offers > 0 ||
+    pipelineComposition.acceptedOffers > 0 ||
+    pipelineComposition.finalRounds > 0
+  ) {
+    return {
+      status: "STEADY",
+      headline: "Recovery momentum is holding at a meaningful stage.",
+      summary:
+        "No recent progression event was detected, but the active pipeline contains downstream opportunities.",
+      direction: "FLAT",
+      recentAdvances,
+      recentSetbacks,
+      recentClosures,
+      signals,
+    };
+  }
+
+  if (
+    pipelineComposition.activeInterviews > 0 ||
+    pipelineComposition.activeApplications > 0
+  ) {
+    return {
+      status: "STEADY",
+      headline: "Recovery momentum is currently steady.",
+      summary:
+        "The active pipeline is still in motion, but there is not enough recent progression evidence to classify acceleration.",
+      direction: "FLAT",
+      recentAdvances,
+      recentSetbacks,
+      recentClosures,
+      signals,
+    };
+  }
+
+  return {
+    status: "STALLING",
+    headline: "Recovery momentum is currently stalled.",
+    summary:
+      "There is not enough active pipeline or recent progression evidence to indicate forward movement.",
+    direction: "FLAT",
+    recentAdvances,
+    recentSetbacks,
+    recentClosures,
+    signals,
+  };
+}
+
 function getRecoveryChange(
   progression: RecentProgression | null
 ): RecoveryChange | null {
@@ -2390,6 +2545,11 @@ export function calculateRecovery(
     pipelineComposition
   );
 
+  const momentum = getRecoveryMomentum(
+    recentProgression,
+    pipelineComposition
+  );
+
   const readiness = getRecoveryReadiness(
     state,
     pipelineComposition
@@ -2401,6 +2561,7 @@ export function calculateRecovery(
     stateReason: getStateReason(input, state),
     runwayMonths,
     pipelineHealth,
+    momentum,
     priorities: getPriorities(
       input,
       state,

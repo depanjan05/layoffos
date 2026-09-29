@@ -23,6 +23,16 @@ type RecoveryEngineResult = {
       | "OFFER_HEAVY";
     signals: string[];
   };
+  momentum: {
+    status: "ACCELERATING" | "STEADY" | "STALLING" | "REVERSING";
+    headline: string;
+    summary: string;
+    direction: "FORWARD" | "FLAT" | "BACKWARD";
+    recentAdvances: number;
+    recentSetbacks: number;
+    recentClosures: number;
+    signals: string[];
+  };
   situation: {
     headline: string;
     summary: string;
@@ -1170,6 +1180,83 @@ export default function DashboardPage() {
 
                           <ul className="mt-2 space-y-1">
                             {recoveryEngine.pipelineHealth.signals.map((signal) => (
+                              <li
+                                key={signal}
+                                className="text-xs leading-5 text-[#66665f]"
+                              >
+                                • {signal}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-5 border-t border-[#deded8] pt-5">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                          Recovery momentum
+                        </p>
+
+                        <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
+                          {recoveryEngine.momentum.status}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                        {recoveryEngine.momentum.headline}
+                      </p>
+
+                      <p className="mt-2 text-sm leading-5 text-[#66665f]">
+                        {recoveryEngine.momentum.summary}
+                      </p>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Direction
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                            {recoveryEngine.momentum.direction}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Advances
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                            {recoveryEngine.momentum.recentAdvances}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Setbacks
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                            {recoveryEngine.momentum.recentSetbacks}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Closures
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                            {recoveryEngine.momentum.recentClosures}
+                          </p>
+                        </div>
+                      </div>
+
+                      {recoveryEngine.momentum.signals.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Momentum signals
+                          </p>
+
+                          <ul className="mt-2 space-y-1">
+                            {recoveryEngine.momentum.signals.map((signal) => (
                               <li
                                 key={signal}
                                 className="text-xs leading-5 text-[#66665f]"
