@@ -1449,7 +1449,7 @@ function getActionEvidence(
   return undefined;
 }
 
-function getActions(
+export function getActions(
   input: RecoveryEngineInput,
   state: RecoveryState,
   runwayMonths: number | null,

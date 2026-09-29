@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  getActions,
   getPipelineHealth,
   getProgressionSignal,
   getRecoveryOutcome,
@@ -653,4 +654,406 @@ test("pipeline progression is null when there are no active interviews", () => {
   );
 
   assert.equal(result.progression, null);
+});
+
+function actionInput(
+  overrides: Partial<RecoveryEngineInput> = {},
+): RecoveryEngineInput {
+  return {
+    recoveryTiming: "last month",
+    employmentStatus: "unemployed",
+    careerStage: "none",
+    applications: [],
+    interviews: [],
+    networkContacts: [],
+    companies: [],
+    completedActions: [],
+    progressionEvents: [],
+    applicationActionEvents: [],
+    ...overrides,
+  };
+}
+
+function pipelineComposition(
+  overrides: Partial<{
+    totalApplications: number;
+    activeApplications: number;
+    activeInterviews: number;
+    finalRounds: number;
+    offers: number;
+    applicationOffers: number;
+    interviewOffers: number;
+    acceptedOffers: number;
+    activeNetworkContacts: number;
+  }> = {},
+) {
+  return {
+    totalApplications: 0,
+    activeApplications: 0,
+    activeInterviews: 0,
+    finalRounds: 0,
+    offers: 0,
+    applicationOffers: 0,
+    interviewOffers: 0,
+    acceptedOffers: 0,
+    activeNetworkContacts: 0,
+    ...overrides,
+  };
+}
+
+test("recovery actions never exceed five recommendations", () => {
+  const actions = getActions(
+    actionInput({
+      recoveryTiming: "this week",
+    }),
+    "JUST_LAID_OFF",
+    6,
+    null,
+    "NEUTRAL",
+    "NO_PIPELINE",
+    pipelineComposition(),
+  );
+
+  assert.ok(actions.length <= 5);
+});
+
+test("completed recovery actions are excluded from recommendations", () => {
+  const input = actionInput({
+    recoveryTiming: "this week",
+    completedActions: [
+      {
+        title: "Complete your first 72 hours",
+        href: "/first-72-hours",
+        completedAt: "2026-09-29T08:00:00.000Z",
+      },
+    ],
+  });
+
+  const actions = getActions(
+    input,
+    "JUST_LAID_OFF",
+    6,
+    null,
+    "NEUTRAL",
+    "NO_PIPELINE",
+    pipelineComposition(),
+  );
+
+  assert.equal(
+    actions.some(
+      (action) =>
+        action.title === "Complete your first 72 hours" &&
+        action.href === "/first-72-hours",
+    ),
+    false,
+  );
+});
+
+test("critical runway always preserves a financial recommendation", () => {
+  const actions = getActions(
+    actionInput({
+      recoveryTiming: "last month",
+      applications: [
+        { stage: "Interview" },
+        { stage: "Final" },
+      ],
+    }),
+    "FINAL_ROUND",
+    1.5,
+    null,
+    "NEUTRAL",
+    "FINAL_ROUND",
+    pipelineComposition({
+      activeApplications: 2,
+      activeInterviews: 1,
+      finalRounds: 1,
+    }),
+  );
+
+  assert.ok(
+    actions.some((action) => action.href === "/runway"),
+  );
+});
+
+test("offer-stage recommendations prioritize offer execution", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeApplications: 3,
+    }),
+  );
+
+  assert.ok(
+    actions.length > 0 &&
+      actions[0].href === "/interviews",
+  );
+});
+
+test("accepted offer recommendations surface accepted-offer confirmation", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      acceptedOffers: 1,
+      offers: 1,
+      activeApplications: 2,
+    }),
+  );
+
+  assert.equal(
+    actions[0].title,
+    "Confirm your accepted offer details",
+  );
+});
+
+test("final-round pipeline elevates interview execution", () => {
+  const actions = getActions(
+    actionInput(),
+    "FINAL_ROUND",
+    6,
+    null,
+    "NEUTRAL",
+    "FINAL_ROUND",
+    pipelineComposition({
+      finalRounds: 1,
+      activeInterviews: 1,
+      activeApplications: 2,
+    }),
+  );
+
+  assert.ok(
+    actions[0].href === "/interviews",
+  );
+});
+
+test("active interview pipeline recommends advancing the interview", () => {
+  const actions = getActions(
+    actionInput(),
+    "INTERVIEWING",
+    6,
+    null,
+    "NEUTRAL",
+    "INTERVIEW_STAGE",
+    pipelineComposition({
+      activeInterviews: 2,
+      activeApplications: 3,
+    }),
+  );
+
+  assert.ok(
+    actions.some(
+      (action) => action.title === "Advance an active interview",
+    ),
+  );
+});
+
+test("application-heavy pipeline recommends converting applications into conversations", () => {
+  const actions = getActions(
+    actionInput(),
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "APPLICATION_STAGE",
+    pipelineComposition({
+      activeApplications: 4,
+    }),
+  );
+
+  assert.ok(
+    actions.some(
+      (action) =>
+        action.title === "Convert applications into conversations",
+    ),
+  );
+});
+
+test("network-only pipeline recommends turning a contact into an opportunity", () => {
+  const actions = getActions(
+    actionInput({
+      networkContacts: [
+        { status: "active" },
+        { status: "active" },
+      ],
+    }),
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "NO_PIPELINE",
+    pipelineComposition({
+      activeNetworkContacts: 2,
+    }),
+  );
+
+  assert.ok(
+    actions.some(
+      (action) =>
+        action.title === "Turn a network contact into an opportunity",
+    ),
+  );
+});
+
+test("empty pipeline creates both search and networking recovery paths", () => {
+  const actions = getActions(
+    actionInput(),
+    "STABILIZING",
+    6,
+    null,
+    "NEUTRAL",
+    "NO_PIPELINE",
+    pipelineComposition(),
+  );
+
+  assert.ok(
+    actions.some(
+      (action) => action.href === "/job-search",
+    ),
+  );
+
+  assert.ok(
+    actions.some(
+      (action) => action.href === "/networking",
+    ),
+  );
+});
+
+test("recovered state produces recovery closeout actions", () => {
+  const actions = getActions(
+    actionInput({
+      employmentStatus: "employed",
+    }),
+    "RECOVERED",
+    6,
+    null,
+    "NEUTRAL",
+    "NO_PIPELINE",
+    pipelineComposition(),
+  );
+
+  assert.ok(
+    actions.some(
+      (action) => action.title === "Review your recovery data",
+    ),
+  );
+});
+
+test("recent advancement into interview stage elevates interview actions", () => {
+  const recent = progression("Application", "Interview");
+
+  const actions = getActions(
+    actionInput(),
+    "INTERVIEWING",
+    6,
+    recent,
+    "ADVANCING",
+    "INTERVIEW_STAGE",
+    pipelineComposition({
+      activeApplications: 2,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(
+    actions[0].href === "/interviews",
+  );
+});
+
+test("setback recommendations include replacement pipeline actions", () => {
+  const recent = progression("Interview", "Rejected");
+
+  const actions = getActions(
+    actionInput(),
+    "SEARCHING",
+    6,
+    recent,
+    "SETBACK",
+    "SETBACK",
+    pipelineComposition({
+      activeApplications: 1,
+    }),
+  );
+
+  assert.ok(
+    actions.some(
+      (action) =>
+        action.title === "Identify 3 replacement target roles",
+    ),
+  );
+});
+
+test("low-confidence application memory does not change recommendations", () => {
+  const baseInput = actionInput({
+    applications: [{ stage: "Applied" }],
+  });
+
+  const withoutMemory = getActions(
+    baseInput,
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "APPLICATION_STAGE",
+    pipelineComposition({
+      activeApplications: 1,
+    }),
+  );
+
+  const withLowConfidenceMemory = getActions(
+    {
+      ...baseInput,
+      applicationActionEvents: [
+        {
+          action: "Review your active application pipeline",
+          completedAt: "2026-09-20T10:00:00.000Z",
+        },
+      ],
+    },
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "APPLICATION_STAGE",
+    pipelineComposition({
+      activeApplications: 1,
+    }),
+  );
+
+  assert.deepEqual(
+    withLowConfidenceMemory.map((action) => action.title),
+    withoutMemory.map((action) => action.title),
+  );
+});
+
+test("recommendations preserve category diversity when enough categories exist", () => {
+  const actions = getActions(
+    actionInput({
+      recoveryTiming: "this week",
+      networkContacts: [{ status: "active" }],
+    }),
+    "JUST_LAID_OFF",
+    6,
+    null,
+    "NEUTRAL",
+    "NO_PIPELINE",
+    pipelineComposition({
+      activeNetworkContacts: 1,
+    }),
+  );
+
+  const categories = new Set(
+    actions.map((action) => action.priority),
+  );
+
+  assert.ok(categories.size >= 3);
 });
