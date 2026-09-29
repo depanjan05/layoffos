@@ -464,9 +464,54 @@ useEffect(() => {
   };
 
   const markActionComplete = (id: string) => {
+    const application = applications.find((app) => app.id === id);
+
+    if (!application || application.actionCompleted) {
+      return;
+    }
+
+    const completedAt = new Date().toISOString();
+
     updateApplication(id, {
       actionCompleted: true,
     });
+
+    void (async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) return;
+
+        const { error } = await supabase.from("events").insert({
+          user_id: user.id,
+          event_type: "application_action_completed",
+          entity_type: "application_action",
+          entity_id: id,
+          metadata: {
+            applicationId: id,
+            company: application.company,
+            role: application.role,
+            action: application.nextAction,
+            dueDate: application.dueDate || null,
+            completedAt,
+          },
+        });
+
+        if (error) {
+          console.error(
+            "Could not log application action completion:",
+            error
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Application action completion event failed:",
+          error
+        );
+      }
+    })();
   };
 
   const activeApplications = applications.filter(
