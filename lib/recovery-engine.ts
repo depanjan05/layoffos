@@ -441,7 +441,7 @@ export type PipelineComposition = {
 };
 
 
-function getActionMemory(
+export function getActionMemory(
   completedActions: RecoveryEngineInput["completedActions"] = [],
   progressionEvents: RecoveryEngineInput["progressionEvents"] = [],
 ): ActionMemory {
@@ -3811,7 +3811,7 @@ export type ApplicationActionMemory = {
   evidence: string[];
 };
 
-function getApplicationActionMemory(
+export function getApplicationActionMemory(
   applicationActionEvents: RecoveryEngineInput["applicationActionEvents"],
   progressionEvents: RecoveryEngineInput["progressionEvents"],
 ): ApplicationActionMemory {

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  getActionMemory,
+  getApplicationActionMemory,
   getActions,
   getPipelineHealth,
   getProgressionSignal,
@@ -1056,4 +1058,725 @@ test("recommendations preserve category diversity when enough categories exist",
   );
 
   assert.ok(categories.size >= 3);
+});
+
+test("action memory stays LOW when fewer than three observations are evaluated", () => {
+  const result = getActionMemory(
+    [
+      {
+        title: "Review your active application pipeline",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+    ],
+    [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-02T10:00:00.000Z",
+        metadata: {
+          company: "Acme",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+    ],
+  );
+
+  assert.equal(result.actionTitle, "Review your active application pipeline");
+  assert.equal(result.instances, 1);
+  assert.equal(result.positive, 1);
+  assert.equal(result.negative, 0);
+  assert.equal(result.confidence, "LOW");
+  assert.equal(result.recommendation, "HOLD");
+});
+
+test("action memory reaches MEDIUM confidence at three evaluated observations", () => {
+  const result = getActionMemory(
+    [
+      {
+        title: "Review your active application pipeline",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        title: "Review your active application pipeline",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        title: "Review your active application pipeline",
+        completedAt: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-01T12:00:00.000Z",
+        metadata: {
+          company: "Acme",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-03T12:00:00.000Z",
+        metadata: {
+          company: "Beta",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-05T12:00:00.000Z",
+        metadata: {
+          company: "Gamma",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+    ],
+  );
+
+  assert.equal(result.instances, 3);
+  assert.equal(result.positive, 3);
+  assert.equal(result.confidence, "MEDIUM");
+  assert.equal(result.recommendation, "REPEAT");
+});
+
+test("action memory reaches HIGH confidence at five evaluated observations", () => {
+  const actions = Array.from({ length: 5 }, (_, index) => ({
+    title: "Review your active application pipeline",
+    completedAt: `2026-09-0${index + 1}T10:00:00.000Z`,
+  }));
+
+  const progressions = actions.map((_, index) => ({
+    eventType: "application_progression",
+    entityType: "application",
+    occurredAt: `2026-09-0${index + 1}T12:00:00.000Z`,
+    metadata: {
+      company: `Company ${index + 1}`,
+      role: "Engineer",
+      previousStage: "Applied",
+      newStage: "Interview",
+    },
+  }));
+
+  const result = getActionMemory(actions, progressions);
+
+  assert.equal(result.instances, 5);
+  assert.equal(result.positive, 5);
+  assert.equal(result.confidence, "HIGH");
+  assert.equal(result.recommendation, "REPEAT");
+});
+
+test("repeated positive action outcomes recommend REPEAT", () => {
+  const result = getActionMemory(
+    [
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-01T12:00:00.000Z",
+        metadata: {
+          company: "Acme",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-03T12:00:00.000Z",
+        metadata: {
+          company: "Beta",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-05T12:00:00.000Z",
+        metadata: {
+          company: "Gamma",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+    ],
+  );
+
+  assert.equal(result.positive, 3);
+  assert.equal(result.negative, 0);
+  assert.equal(result.recommendation, "REPEAT");
+});
+
+test("repeated negative action outcomes recommend RETIRE", () => {
+  const result = getActionMemory(
+    [
+      {
+        title: "Mass apply to generic roles",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        title: "Mass apply to generic roles",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        title: "Mass apply to generic roles",
+        completedAt: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-01T12:00:00.000Z",
+        metadata: {
+          company: "Acme",
+          role: "Engineer",
+          previousStage: "Interview",
+          newStage: "Applied",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-03T12:00:00.000Z",
+        metadata: {
+          company: "Beta",
+          role: "Engineer",
+          previousStage: "Interview",
+          newStage: "Applied",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-05T12:00:00.000Z",
+        metadata: {
+          company: "Gamma",
+          role: "Engineer",
+          previousStage: "Interview",
+          newStage: "Applied",
+        },
+      },
+    ],
+  );
+
+  assert.equal(result.negative, 3);
+  assert.equal(result.positive, 0);
+  assert.equal(result.recommendation, "RETIRE");
+});
+
+test("mixed positive and negative action outcomes recommend MODIFY", () => {
+  const result = getActionMemory(
+    [
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-01T12:00:00.000Z",
+        metadata: {
+          company: "Acme",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-03T12:00:00.000Z",
+        metadata: {
+          company: "Beta",
+          role: "Engineer",
+          previousStage: "Interview",
+          newStage: "Applied",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-05T12:00:00.000Z",
+        metadata: {
+          company: "Gamma",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+    ],
+  );
+
+  assert.equal(result.positive, 2);
+  assert.equal(result.negative, 1);
+  assert.equal(result.recommendation, "MODIFY");
+});
+
+test("action memory remains HOLD when no downstream outcomes exist", () => {
+  const result = getActionMemory(
+    [
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    [],
+  );
+
+  assert.equal(result.actionTitle, "Follow up with recruiter");
+  assert.equal(result.instances, 0);
+  assert.equal(result.positive, 0);
+  assert.equal(result.negative, 0);
+  assert.equal(result.neutral, 0);
+  assert.equal(result.unknown, 3);
+  assert.equal(result.confidence, "LOW");
+  assert.equal(result.recommendation, "HOLD");
+});
+
+test("action memory aggregates only the latest repeated action title", () => {
+  const result = getActionMemory(
+    [
+      {
+        title: "Older action",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        title: "Repeated action",
+        completedAt: "2026-09-02T10:00:00.000Z",
+      },
+      {
+        title: "Repeated action",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        title: "Repeated action",
+        completedAt: "2026-09-04T10:00:00.000Z",
+      },
+    ],
+    [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-01T12:00:00.000Z",
+        metadata: {
+          company: "Old",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-02T12:00:00.000Z",
+        metadata: {
+          company: "Acme",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-03T12:00:00.000Z",
+        metadata: {
+          company: "Beta",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-04T12:00:00.000Z",
+        metadata: {
+          company: "Gamma",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+    ],
+  );
+
+  assert.equal(result.actionTitle, "Repeated action");
+  assert.equal(result.instances, 3);
+  assert.equal(result.positive, 3);
+  assert.equal(result.confidence, "MEDIUM");
+});
+
+test("action memory does not treat UNKNOWN outcomes as positive or negative", () => {
+  const result = getActionMemory(
+    [
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        title: "Follow up with recruiter",
+        completedAt: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-01T12:00:00.000Z",
+        metadata: {
+          company: "Acme",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+    ],
+  );
+
+  assert.equal(result.positive, 1);
+  assert.equal(result.negative, 0);
+  assert.equal(result.unknown, 2);
+  assert.equal(result.positiveRate, 1);
+  assert.equal(result.confidence, "LOW");
+  assert.equal(result.recommendation, "HOLD");
+});
+
+test("application action memory reaches MEDIUM and recommends REPEAT", () => {
+  const result = getApplicationActionMemory(
+    [
+      {
+        applicationId: "app-1",
+        company: "Acme",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-2",
+        company: "Beta",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-3",
+        company: "Gamma",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-01T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-1",
+          company: "Acme",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-03T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-2",
+          company: "Beta",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-05T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-3",
+          company: "Gamma",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+    ],
+  );
+
+  assert.equal(result.action, "Follow Up with Recruiter");
+  assert.equal(result.instances, 3);
+  assert.equal(result.positive, 3);
+  assert.equal(result.confidence, "MEDIUM");
+  assert.equal(result.recommendation, "REPEAT");
+});
+
+test("application action memory recommends RETIRE for repeated negative outcomes", () => {
+  const result = getApplicationActionMemory(
+    [
+      {
+        applicationId: "app-1",
+        company: "Acme",
+        role: "Engineer",
+        action: "Generic Follow Up",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-2",
+        company: "Beta",
+        role: "Engineer",
+        action: "Generic Follow Up",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-3",
+        company: "Gamma",
+        role: "Engineer",
+        action: "Generic Follow Up",
+        completedAt: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-01T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-1",
+          company: "Acme",
+          role: "Engineer",
+          previousStage: "Interview",
+          newStage: "Applied",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-03T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-2",
+          company: "Beta",
+          role: "Engineer",
+          previousStage: "Interview",
+          newStage: "Applied",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-05T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-3",
+          company: "Gamma",
+          role: "Engineer",
+          previousStage: "Interview",
+          newStage: "Applied",
+        },
+      },
+    ],
+  );
+
+  assert.equal(result.negative, 3);
+  assert.equal(result.confidence, "MEDIUM");
+  assert.equal(result.recommendation, "RETIRE");
+});
+
+test("application action memory recommends MODIFY for mixed outcomes", () => {
+  const result = getApplicationActionMemory(
+    [
+      {
+        applicationId: "app-1",
+        company: "Acme",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-2",
+        company: "Beta",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-3",
+        company: "Gamma",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-01T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-1",
+          company: "Acme",
+          role: "Engineer",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-03T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-2",
+          company: "Beta",
+          role: "Engineer",
+          previousStage: "Interview",
+          newStage: "Applied",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-05T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-3",
+          company: "Gamma",
+          role: "Applied",
+          previousStage: "Applied",
+          newStage: "Interview",
+        },
+      },
+    ],
+  );
+
+  assert.equal(result.positive, 2);
+  assert.equal(result.negative, 1);
+  assert.equal(result.confidence, "MEDIUM");
+  assert.equal(result.recommendation, "MODIFY");
+});
+
+test("application action memory stays LOW when downstream outcomes are unknown", () => {
+  const result = getApplicationActionMemory(
+    [
+      {
+        applicationId: "app-1",
+        company: "Acme",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-2",
+        company: "Beta",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-3",
+        company: "Gamma",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-05T10:00:00.000Z",
+      },
+    ],
+    [],
+  );
+
+  assert.equal(result.instances, 3);
+  assert.equal(result.unknown, 3);
+  assert.equal(result.confidence, "LOW");
+  assert.equal(result.recommendation, "HOLD");
+});
+
+test("application action memory aggregates only the latest repeated action", () => {
+  const result = getApplicationActionMemory(
+    [
+      {
+        applicationId: "old",
+        company: "Old",
+        role: "Engineer",
+        action: "Older Action",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-1",
+        company: "Acme",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-02T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-2",
+        company: "Beta",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-3",
+        company: "Gamma",
+        role: "Engineer",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-04T10:00:00.000Z",
+      },
+    ],
+    [],
+  );
+
+  assert.equal(result.action, "Follow Up with Recruiter");
+  assert.equal(result.instances, 3);
+  assert.equal(result.unknown, 3);
+  assert.equal(result.confidence, "LOW");
+  assert.equal(result.recommendation, "HOLD");
 });
