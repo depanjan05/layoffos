@@ -103,6 +103,20 @@ export type ActionRecalibration = {
   evidence: string[];
 };
 
+export type ActionMemory = {
+  actionTitle: string | null;
+  instances: number;
+  positive: number;
+  negative: number;
+  neutral: number;
+  unknown: number;
+  positiveRate: number | null;
+  negativeRate: number | null;
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+  recommendation: "REPEAT" | "MODIFY" | "RETIRE" | "HOLD";
+  evidence: string[];
+};
+
 export type RecoveryTransition = {
   nextState: RecoveryState;
   label: string;
@@ -202,6 +216,204 @@ export type PipelineComposition = {
   activeNetworkContacts: number;
 };
 
+
+function getActionMemory(
+  completedActions: RecoveryEngineInput["completedActions"] = [],
+  progressionEvents: RecoveryEngineInput["progressionEvents"] = [],
+): ActionMemory {
+  const actions = completedActions
+    .filter(
+      (action) =>
+        typeof action.title === "string" &&
+        typeof action.completedAt === "string",
+    )
+    .map((action) => ({
+      ...action,
+      timestamp: new Date(action.completedAt as string).getTime(),
+    }))
+    .filter((action) => Number.isFinite(action.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const progressions = progressionEvents
+    .filter(
+      (event) =>
+        (event.eventType === "application_progression" ||
+          event.eventType === "interview_progression") &&
+        typeof event.occurredAt === "string",
+    )
+    .map((event) => ({
+      event,
+      timestamp: new Date(event.occurredAt as string).getTime(),
+    }))
+    .filter((item) => Number.isFinite(item.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  if (actions.length === 0) {
+    return {
+      actionTitle: null,
+      instances: 0,
+      positive: 0,
+      negative: 0,
+      neutral: 0,
+      unknown: 0,
+      positiveRate: null,
+      negativeRate: null,
+      confidence: "LOW",
+      recommendation: "HOLD",
+      evidence: [],
+    };
+  }
+
+  const targetTitle = actions[actions.length - 1].title as string;
+
+  const matchingActions = actions.filter(
+    (action) => action.title === targetTitle,
+  );
+
+  const counts = {
+    positive: 0,
+    negative: 0,
+    neutral: 0,
+    unknown: 0,
+  };
+
+  const matchedEvidence: string[] = [];
+
+  for (let i = 0; i < matchingActions.length; i += 1) {
+    const action = matchingActions[i];
+
+    const nextActionTime =
+      i < matchingActions.length - 1
+        ? matchingActions[i + 1].timestamp
+        : Infinity;
+
+    const related = progressions.find(
+      (item) =>
+        item.timestamp >= action.timestamp &&
+        item.timestamp < nextActionTime &&
+        item.timestamp <=
+          action.timestamp + 14 * 24 * 60 * 60 * 1000,
+    );
+
+    if (!related) {
+      counts.unknown += 1;
+      continue;
+    }
+
+    const metadata = related.event.metadata ?? {};
+
+    const previousStage =
+      typeof metadata.previousStage === "string"
+        ? metadata.previousStage
+        : "previous stage";
+
+    const newStage =
+      typeof metadata.newStage === "string"
+        ? metadata.newStage
+        : "new stage";
+
+    const company =
+      typeof metadata.company === "string"
+        ? metadata.company
+        : "the company";
+
+    const role =
+      typeof metadata.role === "string"
+        ? metadata.role
+        : "the role";
+
+    const signal = getProgressionSignal({
+      type:
+        related.event.eventType === "application_progression"
+          ? "application"
+          : "interview",
+      company,
+      role,
+      previousStage,
+      newStage,
+      occurredAt: related.event.occurredAt ?? null,
+    });
+
+    if (signal === "ADVANCING") {
+      counts.positive += 1;
+    } else if (signal === "SETBACK" || signal === "CLOSED") {
+      counts.negative += 1;
+    } else {
+      counts.neutral += 1;
+    }
+
+    if (matchedEvidence.length < 5) {
+      matchedEvidence.push(
+        `${targetTitle}: ${previousStage} → ${newStage} at ${company}`,
+      );
+    }
+  }
+
+  const instances =
+    counts.positive +
+    counts.negative +
+    counts.neutral;
+
+  const positiveRate =
+    instances > 0 ? counts.positive / instances : null;
+
+  const negativeRate =
+    instances > 0 ? counts.negative / instances : null;
+
+  let confidence: ActionMemory["confidence"] = "LOW";
+
+  if (instances >= 5) {
+    confidence = "HIGH";
+  } else if (instances >= 3) {
+    confidence = "MEDIUM";
+  }
+
+  let recommendation: ActionMemory["recommendation"] = "HOLD";
+
+  if (instances >= 3) {
+    if (
+      counts.positive >= 2 &&
+      (positiveRate ?? 0) >= 0.67
+    ) {
+      recommendation = "REPEAT";
+    } else if (
+      counts.negative >= 2 &&
+      (negativeRate ?? 0) >= 0.67
+    ) {
+      recommendation = "RETIRE";
+    } else if (
+      counts.positive > 0 &&
+      counts.negative > 0
+    ) {
+      recommendation = "MODIFY";
+    }
+  }
+
+  const evidence = [
+    `Action: ${targetTitle}`,
+    `Tracked instances: ${matchingActions.length}`,
+    `Evaluated instances: ${instances}`,
+    `Positive: ${counts.positive}`,
+    `Negative: ${counts.negative}`,
+    `Neutral: ${counts.neutral}`,
+    `Unknown: ${counts.unknown}`,
+    ...matchedEvidence,
+  ];
+
+  return {
+    actionTitle: targetTitle,
+    instances,
+    positive: counts.positive,
+    negative: counts.negative,
+    neutral: counts.neutral,
+    unknown: counts.unknown,
+    positiveRate,
+    negativeRate,
+    confidence,
+    recommendation,
+    evidence,
+  };
+}
 
 function getRecoveryActionEffect(
   completedActions: RecoveryEngineInput["completedActions"] = [],
@@ -413,6 +625,7 @@ export type RecoveryEngineResult = {
   recalibration: RecoveryRecalibration;
   actionEffect: RecoveryActionEffect;
   actionRecalibration: ActionRecalibration;
+  actionMemory: ActionMemory;
   priorities: RecoveryPriority[];
   actions: RecoveryAction[];
   transition: RecoveryTransition;
@@ -2948,6 +3161,11 @@ export function calculateRecovery(
 
   const actionRecalibration = getActionRecalibration(actionEffect);
 
+  const actionMemory = getActionMemory(
+    input.completedActions ?? [],
+    input.progressionEvents ?? []
+  );
+
   const readiness = getRecoveryReadiness(
     state,
     pipelineComposition
@@ -2964,6 +3182,7 @@ export function calculateRecovery(
     recalibration,
     actionEffect,
     actionRecalibration,
+    actionMemory,
     priorities: getPriorities(
       input,
       state,

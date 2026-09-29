@@ -65,6 +65,19 @@ type RecoveryEngineResult = {
     reason: string;
     evidence: string[];
   };
+  actionMemory: {
+    actionTitle: string | null;
+    instances: number;
+    positive: number;
+    negative: number;
+    neutral: number;
+    unknown: number;
+    positiveRate: number | null;
+    negativeRate: number | null;
+    confidence: "LOW" | "MEDIUM" | "HIGH";
+    recommendation: "REPEAT" | "MODIFY" | "RETIRE" | "HOLD";
+    evidence: string[];
+  };
   situation: {
     headline: string;
     summary: string;
@@ -1425,6 +1438,105 @@ export default function DashboardPage() {
                               </li>
                             )
                           )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-5 border-t border-[#deded8] pt-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                        Action memory
+                      </p>
+
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
+                        {recoveryEngine.actionMemory.confidence} confidence
+                      </span>
+                    </div>
+
+                    {recoveryEngine.actionMemory.actionTitle && (
+                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                        {recoveryEngine.actionMemory.actionTitle}
+                      </p>
+                    )}
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Instances
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                          {recoveryEngine.actionMemory.instances}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Positive
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                          {recoveryEngine.actionMemory.positive}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Negative
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                          {recoveryEngine.actionMemory.negative}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Unknown
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                          {recoveryEngine.actionMemory.unknown}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Positive rate
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                          {recoveryEngine.actionMemory.positiveRate === null
+                            ? "—"
+                            : `${Math.round(
+                                recoveryEngine.actionMemory.positiveRate * 100
+                              )}%`}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Historical recommendation
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                          {recoveryEngine.actionMemory.recommendation}
+                        </p>
+                      </div>
+                    </div>
+
+                    {recoveryEngine.actionMemory.evidence.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Memory evidence
+                        </p>
+
+                        <ul className="mt-2 space-y-1">
+                          {recoveryEngine.actionMemory.evidence.map((item) => (
+                            <li
+                              key={item}
+                              className="text-xs leading-5 text-[#66665f]"
+                            >
+                              • {item}
+                            </li>
+                          ))}
                         </ul>
                       </div>
                     )}
