@@ -40,6 +40,14 @@ export type RecoveryBottleneck = {
   focus: string;
 };
 
+export type RecoveryReadiness = {
+  ready: boolean;
+  headline: string;
+  summary: string;
+  blockers: string[];
+  nextState: RecoveryState;
+};
+
 export type RecoveryTransition = {
   nextState: RecoveryState;
   label: string;
@@ -150,6 +158,7 @@ export type RecoveryEngineResult = {
   situation: RecoverySituation;
   change: RecoveryChange | null;
   bottleneck: RecoveryBottleneck;
+  readiness: RecoveryReadiness;
 };
 
 function normalize(value?: string | null) {
@@ -1927,6 +1936,155 @@ function getRecoveryBottleneck(
   };
 }
 
+function getRecoveryReadiness(
+  state: RecoveryState,
+  pipelineComposition: PipelineComposition
+): RecoveryReadiness {
+  /*
+   * v1.16 transition-readiness contract:
+   *
+   * JUST_LAID_OFF → STABILIZING
+   * STABILIZING   → SEARCHING
+   * SEARCHING     → INTERVIEWING
+   * INTERVIEWING  → FINAL_ROUND
+   * FINAL_ROUND   → OFFER
+   * OFFER         → RECOVERED
+   * RECOVERED     → RECOVERED
+   *
+   * Readiness is evidence that the next transition has been achieved.
+   */
+
+  if (state === "JUST_LAID_OFF") {
+    return {
+      ready: true,
+      headline: "The immediate stabilization transition is ready.",
+      summary:
+        "The recovery process can move from the immediate post-layoff stage into active stabilization.",
+      blockers: [],
+      nextState: "STABILIZING",
+    };
+  }
+
+  if (state === "STABILIZING") {
+    if (pipelineComposition.activeApplications > 0) {
+      return {
+        ready: true,
+        headline: "The recovery pipeline is ready to enter active search.",
+        summary:
+          "At least one active application is now in motion, providing evidence that the recovery process has moved beyond stabilization.",
+        blockers: [],
+        nextState: "SEARCHING",
+      };
+    }
+
+    return {
+      ready: false,
+      headline: "The recovery baseline is not yet ready for active search.",
+      summary:
+        "The system has not yet detected an active application pipeline.",
+      blockers: ["No active application pipeline."],
+      nextState: "SEARCHING",
+    };
+  }
+
+  if (state === "SEARCHING") {
+    if (pipelineComposition.activeInterviews > 0) {
+      return {
+        ready: true,
+        headline: "The search pipeline is ready to transition into interviews.",
+        summary:
+          "At least one active interview has been created from the search pipeline.",
+        blockers: [],
+        nextState: "INTERVIEWING",
+      };
+    }
+
+    return {
+      ready: false,
+      headline: "The search pipeline is not yet ready for interview transition.",
+      summary:
+        "Active applications exist, but the pipeline has not yet produced an active interview.",
+      blockers: ["No active interview opportunity."],
+      nextState: "INTERVIEWING",
+    };
+  }
+
+  if (state === "INTERVIEWING") {
+    if (pipelineComposition.finalRounds > 0) {
+      return {
+        ready: true,
+        headline: "The interview pipeline is ready to transition into a final round.",
+        summary:
+          "At least one active interview has reached the final-round stage.",
+        blockers: [],
+        nextState: "FINAL_ROUND",
+      };
+    }
+
+    return {
+      ready: false,
+      headline: "The interview pipeline is not yet ready for a final round.",
+      summary:
+        "Active interviews exist, but no final-round opportunity has been detected.",
+      blockers: ["No active final-round opportunity."],
+      nextState: "FINAL_ROUND",
+    };
+  }
+
+  if (state === "FINAL_ROUND") {
+    if (pipelineComposition.offers > 0) {
+      return {
+        ready: true,
+        headline: "The final-round opportunity is ready to transition into an offer.",
+        summary:
+          "An offer-stage opportunity has been detected following the final-round stage.",
+        blockers: [],
+        nextState: "OFFER",
+      };
+    }
+
+    return {
+      ready: false,
+      headline: "The final-round opportunity is not yet ready for an offer transition.",
+      summary:
+        "A final-round opportunity is active, but no offer-stage opportunity has been detected.",
+      blockers: ["No active offer-stage opportunity."],
+      nextState: "OFFER",
+    };
+  }
+
+  if (state === "OFFER") {
+    if (pipelineComposition.acceptedOffers > 0) {
+      return {
+        ready: true,
+        headline: "The recovery is ready to transition back into employment.",
+        summary:
+          "An offer has been accepted, satisfying the evidence required for the final recovery transition.",
+        blockers: [],
+        nextState: "RECOVERED",
+      };
+    }
+
+    return {
+      ready: false,
+      headline: "The offer-stage transition is not yet complete.",
+      summary:
+        "An offer-stage opportunity is active, but there is not yet evidence that it has been accepted.",
+      blockers: ["Offer has not yet been accepted."],
+      nextState: "RECOVERED",
+    };
+  }
+
+  return {
+    ready: true,
+    headline: "Recovery is complete.",
+    summary:
+      "Employment has resumed and the recovery state has reached its terminal condition.",
+    blockers: [],
+    nextState: "RECOVERED",
+  };
+}
+
 function getRecoveryChange(
   progression: RecentProgression | null
 ): RecoveryChange | null {
@@ -2056,6 +2214,11 @@ export function calculateRecovery(
     pipelineComposition
   );
 
+  const readiness = getRecoveryReadiness(
+    state,
+    pipelineComposition
+  );
+
   return {
     state,
     stateLabel: getStateLabel(state),
@@ -2083,5 +2246,6 @@ export function calculateRecovery(
     situation,
     change,
     bottleneck,
+    readiness,
   };
 }

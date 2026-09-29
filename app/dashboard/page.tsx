@@ -24,6 +24,13 @@ type RecoveryEngineResult = {
     summary: string;
     focus: string;
   };
+  readiness: {
+    ready: boolean;
+    headline: string;
+    summary: string;
+    blockers: string[];
+    nextState: string;
+  };
   priorities: string[];
   actions: {
     title: string;
@@ -1032,6 +1039,51 @@ export default function DashboardPage() {
 
                       <p className="mt-3 text-xs font-medium leading-5 text-[#888880]">
                         Focus: {recoveryEngine.bottleneck.focus}
+                      </p>
+                    </div>
+
+                    <div className="mt-5 border-t border-[#deded8] pt-5">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                          Transition readiness
+                        </p>
+
+                        <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
+                          {recoveryEngine.readiness.ready
+                            ? "Ready"
+                            : "Not ready"}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                        {recoveryEngine.readiness.headline}
+                      </p>
+
+                      <p className="mt-2 text-sm leading-5 text-[#66665f]">
+                        {recoveryEngine.readiness.summary}
+                      </p>
+
+                      {recoveryEngine.readiness.blockers.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Blocking transition
+                          </p>
+
+                          <ul className="mt-2 space-y-1">
+                            {recoveryEngine.readiness.blockers.map((blocker) => (
+                              <li
+                                key={blocker}
+                                className="text-xs leading-5 text-[#66665f]"
+                              >
+                                • {blocker}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      <p className="mt-3 text-xs font-medium leading-5 text-[#888880]">
+                        Next state: {recoveryEngine.readiness.nextState}
                       </p>
                     </div>
                   </div>
