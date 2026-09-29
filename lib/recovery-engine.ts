@@ -180,6 +180,15 @@ export type RecoveryEngineInput = {
     occurredAt?: string | null;
     metadata?: Record<string, unknown> | null;
   }>;
+
+  applicationActionEvents?: Array<{
+    applicationId?: string | null;
+    company?: string | null;
+    role?: string | null;
+    action?: string | null;
+    dueDate?: string | null;
+    completedAt?: string | null;
+  }>;
 };
 
 export type RecentProgression = {
@@ -616,6 +625,10 @@ function getActionRecalibration(
 
 export type RecoveryEngineResult = {
   state: RecoveryState;
+  applicationActionEvents: RecoveryEngineInput["applicationActionEvents"];
+  applicationActionEffect: ApplicationActionEffect;
+  applicationActionRecalibration: ApplicationActionRecalibration;
+  applicationActionMemory: ApplicationActionMemory;
   stateLabel: string;
   stateReason: string;
   runwayMonths: number | null;
@@ -3161,6 +3174,32 @@ export function calculateRecovery(
 
   const actionRecalibration = getActionRecalibration(actionEffect);
 
+  const applicationActionEffect = getApplicationActionEffect(
+
+    input.applicationActionEvents,
+
+    input.progressionEvents,
+
+  );
+
+
+  const applicationActionRecalibration =
+    getApplicationActionRecalibration(applicationActionEffect);
+
+
+
+  const applicationActionMemory = getApplicationActionMemory(
+
+
+    input.applicationActionEvents,
+
+
+    input.progressionEvents,
+
+
+  );
+
+
   const actionMemory = getActionMemory(
     input.completedActions ?? [],
     input.progressionEvents ?? []
@@ -3173,6 +3212,11 @@ export function calculateRecovery(
 
   return {
     state,
+    applicationActionEvents:
+      input.applicationActionEvents ?? [],
+    applicationActionEffect,
+    applicationActionRecalibration,
+    applicationActionMemory,
     stateLabel: getStateLabel(state),
     stateReason: getStateReason(input, state),
     runwayMonths,
@@ -3208,3 +3252,403 @@ export function calculateRecovery(
     readiness,
   };
 }
+
+export type ApplicationActionEffect = {
+  status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
+  headline: string;
+  summary: string;
+  evidence: string[];
+  recommendation: string;
+  applicationId: string | null;
+  action: string | null;
+  company: string | null;
+  role: string | null;
+  completedAt: string | null;
+  progression: RecentProgression | null;
+};
+
+function getApplicationActionEffect(
+  applicationActionEvents: RecoveryEngineInput["applicationActionEvents"],
+  progressionEvents: RecoveryEngineInput["progressionEvents"],
+): ApplicationActionEffect {
+  const completedActions = (applicationActionEvents ?? [])
+    .filter(
+      (action) =>
+        typeof action.completedAt === "string" &&
+        action.completedAt.length > 0 &&
+        typeof action.action === "string" &&
+        action.action.length > 0,
+    )
+    .sort((a, b) => {
+      const aTime = new Date(a.completedAt as string).getTime();
+      const bTime = new Date(b.completedAt as string).getTime();
+      return bTime - aTime;
+    });
+
+  const latestAction = completedActions[0];
+
+  if (!latestAction) {
+    return {
+      status: "UNKNOWN",
+      headline: "No application action outcome yet",
+      summary:
+        "Complete an application next action and the engine will look for subsequent pipeline movement.",
+      evidence: [],
+      recommendation: "Complete a tracked application next action.",
+      applicationId: null,
+      action: null,
+      company: null,
+      role: null,
+      completedAt: null,
+      progression: null,
+    };
+  }
+
+  const completedAt = new Date(latestAction.completedAt as string);
+  const fourteenDaysLater = new Date(completedAt);
+  fourteenDaysLater.setDate(fourteenDaysLater.getDate() + 14);
+
+  const relatedProgression = (progressionEvents ?? [])
+    .map((event) => {
+      const metadata = event.metadata ?? {};
+
+      return {
+        event,
+        applicationId:
+          typeof metadata.applicationId === "string"
+            ? metadata.applicationId
+            : null,
+        company:
+          typeof metadata.company === "string"
+            ? metadata.company
+            : null,
+        role:
+          typeof metadata.role === "string"
+            ? metadata.role
+            : null,
+        previousStage:
+          typeof metadata.previousStage === "string"
+            ? metadata.previousStage
+            : "",
+        newStage:
+          typeof metadata.newStage === "string"
+            ? metadata.newStage
+            : "",
+      };
+    })
+    .filter((item) => {
+      if (
+        latestAction.applicationId &&
+        item.applicationId &&
+        latestAction.applicationId !== item.applicationId
+      ) {
+        return false;
+      }
+
+      if (!item.event.occurredAt) {
+        return false;
+      }
+
+      const occurredAt = new Date(item.event.occurredAt).getTime();
+
+      return (
+        occurredAt > completedAt.getTime() &&
+        occurredAt <= fourteenDaysLater.getTime()
+      );
+    })
+    .sort((a, b) => {
+      const aTime = new Date(a.event.occurredAt as string).getTime();
+      const bTime = new Date(b.event.occurredAt as string).getTime();
+      return aTime - bTime;
+    });
+
+  const firstProgression = relatedProgression[0];
+
+  if (!firstProgression) {
+    return {
+      status: "UNKNOWN",
+      headline: "No pipeline movement followed the application action",
+      summary:
+        "The completed application action has not yet been followed by a tracked stage change within 14 days.",
+      evidence: [
+        latestAction.company
+          ? `${latestAction.company}: ${latestAction.action}`
+          : `${latestAction.action}`,
+        "No subsequent application progression was recorded within 14 days.",
+      ],
+      recommendation:
+        "Hold the action pattern until more outcome data is available.",
+      applicationId: latestAction.applicationId ?? null,
+      action: latestAction.action ?? null,
+      company: latestAction.company ?? null,
+      role: latestAction.role ?? null,
+      completedAt: latestAction.completedAt ?? null,
+      progression: null,
+    };
+  }
+
+  const progression: RecentProgression = {
+    type: "application",
+    company:
+      firstProgression.company ??
+      latestAction.company ??
+      "Unknown company",
+    role:
+      firstProgression.role ??
+      latestAction.role ??
+      "Unknown role",
+    previousStage: firstProgression.previousStage,
+    newStage: firstProgression.newStage,
+    occurredAt: firstProgression.event.occurredAt ?? null,
+  };
+
+  const signal = getProgressionSignal(progression);
+
+  if (signal === "ADVANCING") {
+    return {
+      status: "POSITIVE",
+      headline: "Application action was followed by progression",
+      summary:
+        "A tracked application stage advanced after the completed next action.",
+      evidence: [
+        `${latestAction.action} was completed.`,
+        `${progression.previousStage} → ${progression.newStage} followed within 14 days.`,
+      ],
+      recommendation:
+        "Repeat this application-action pattern while continuing to measure outcomes.",
+      applicationId: latestAction.applicationId ?? null,
+      action: latestAction.action ?? null,
+      company: latestAction.company ?? null,
+      role: latestAction.role ?? null,
+      completedAt: latestAction.completedAt ?? null,
+      progression,
+    };
+  }
+
+  if (signal === "SETBACK" || signal === "CLOSED") {
+    return {
+      status: "NEGATIVE",
+      headline: "Application action was followed by a setback",
+      summary:
+        "A tracked application stage moved backward or closed after the completed next action.",
+      evidence: [
+        `${latestAction.action} was completed.`,
+        `${progression.previousStage} → ${progression.newStage} followed within 14 days.`,
+      ],
+      recommendation:
+        "Modify this application-action pattern and gather more outcome data before repeating it broadly.",
+      applicationId: latestAction.applicationId ?? null,
+      action: latestAction.action ?? null,
+      company: latestAction.company ?? null,
+      role: latestAction.role ?? null,
+      completedAt: latestAction.completedAt ?? null,
+      progression,
+    };
+  }
+
+  return {
+    status: "NEUTRAL",
+    headline: "Application action was followed by a pipeline change",
+    summary:
+      "A tracked stage change followed the completed next action, but the movement was not classified as advancement or setback.",
+    evidence: [
+      `${latestAction.action} was completed.`,
+      `${progression.previousStage} → ${progression.newStage} followed within 14 days.`,
+    ],
+    recommendation:
+      "Hold the current pattern until additional application outcomes are available.",
+    applicationId: latestAction.applicationId ?? null,
+    action: latestAction.action ?? null,
+    company: latestAction.company ?? null,
+    role: latestAction.role ?? null,
+    completedAt: latestAction.completedAt ?? null,
+    progression,
+  };
+}
+
+export type ApplicationActionRecalibration = {
+  action: string | null;
+  decision: "REPEAT" | "MODIFY" | "HOLD";
+  reason: string;
+  evidence: string[];
+};
+
+function getApplicationActionRecalibration(
+  effect: ApplicationActionEffect,
+): ApplicationActionRecalibration {
+  if (effect.status === "POSITIVE") {
+    return {
+      action: effect.action,
+      decision: "REPEAT",
+      reason:
+        "This application action was followed by tracked pipeline progression.",
+      evidence: effect.evidence,
+    };
+  }
+
+  if (effect.status === "NEGATIVE") {
+    return {
+      action: effect.action,
+      decision: "MODIFY",
+      reason:
+        "This application action was followed by a tracked setback or closure.",
+      evidence: effect.evidence,
+    };
+  }
+
+  return {
+    action: effect.action,
+    decision: "HOLD",
+    reason:
+      effect.status === "UNKNOWN"
+        ? "There is not enough downstream outcome data to change the current pattern."
+        : "The downstream pipeline signal is not strong enough to change the current pattern.",
+    evidence: effect.evidence,
+  };
+}
+
+export type ApplicationActionMemory = {
+  action: string | null;
+  instances: number;
+  positive: number;
+  negative: number;
+  neutral: number;
+  unknown: number;
+  positiveRate: number | null;
+  negativeRate: number | null;
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+  recommendation: "REPEAT" | "MODIFY" | "RETIRE" | "HOLD";
+  evidence: string[];
+};
+
+function getApplicationActionMemory(
+  applicationActionEvents: RecoveryEngineInput["applicationActionEvents"],
+  progressionEvents: RecoveryEngineInput["progressionEvents"],
+): ApplicationActionMemory {
+  const actions = (applicationActionEvents ?? [])
+    .filter(
+      (action) =>
+        typeof action.action === "string" &&
+        action.action.length > 0 &&
+        typeof action.completedAt === "string" &&
+        action.completedAt.length > 0,
+    )
+    .sort((a, b) => {
+      const aTime = new Date(a.completedAt as string).getTime();
+      const bTime = new Date(b.completedAt as string).getTime();
+      return bTime - aTime;
+    });
+
+  const targetAction = actions[0]?.action ?? null;
+
+  if (!targetAction) {
+    return {
+      action: null,
+      instances: 0,
+      positive: 0,
+      negative: 0,
+      neutral: 0,
+      unknown: 0,
+      positiveRate: null,
+      negativeRate: null,
+      confidence: "LOW",
+      recommendation: "HOLD",
+      evidence: [],
+    };
+  }
+
+  const matchingActions = actions.filter(
+    (action) => action.action === targetAction,
+  );
+
+  let positive = 0;
+  let negative = 0;
+  let neutral = 0;
+  let unknown = 0;
+
+  const evidence: string[] = [];
+
+  for (const action of matchingActions) {
+    const effect = getApplicationActionEffect(
+      [action],
+      progressionEvents,
+    );
+
+    if (effect.status === "POSITIVE") {
+      positive += 1;
+    } else if (effect.status === "NEGATIVE") {
+      negative += 1;
+    } else if (effect.status === "NEUTRAL") {
+      neutral += 1;
+    } else {
+      unknown += 1;
+    }
+
+    if (effect.progression) {
+      evidence.push(
+        `${effect.company ?? "Application"}: ${effect.action} was followed by ${effect.progression.previousStage} → ${effect.progression.newStage}.`,
+      );
+    } else {
+      evidence.push(
+        `${effect.company ?? "Application"}: ${effect.action} has no tracked downstream progression yet.`,
+      );
+    }
+  }
+
+  const instances = matchingActions.length;
+  const evaluated = positive + negative + neutral;
+
+  const positiveRate =
+    evaluated > 0 ? positive / evaluated : null;
+
+  const negativeRate =
+    evaluated > 0 ? negative / evaluated : null;
+
+  let confidence: ApplicationActionMemory["confidence"] = "LOW";
+
+  if (evaluated >= 5) {
+    confidence = "HIGH";
+  } else if (evaluated >= 3) {
+    confidence = "MEDIUM";
+  }
+
+  let recommendation: ApplicationActionMemory["recommendation"] =
+    "HOLD";
+
+  if (
+    evaluated >= 3 &&
+    positive >= 2 &&
+    positiveRate !== null &&
+    positiveRate >= 0.67
+  ) {
+    recommendation = "REPEAT";
+  } else if (
+    evaluated >= 3 &&
+    negative >= 2 &&
+    negativeRate !== null &&
+    negativeRate >= 0.67
+  ) {
+    recommendation = "RETIRE";
+  } else if (
+    evaluated >= 3 &&
+    positive > 0 &&
+    negative > 0
+  ) {
+    recommendation = "MODIFY";
+  }
+
+  return {
+    action: targetAction,
+    instances,
+    positive,
+    negative,
+    neutral,
+    unknown,
+    positiveRate,
+    negativeRate,
+    confidence,
+    recommendation,
+    evidence,
+  };
+}
+

@@ -27,6 +27,7 @@ export async function GET() {
     networkingResult,
     completedActionsResult,
     progressionEventsResult,
+    applicationActionEventsResult,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -85,6 +86,15 @@ export async function GET() {
       ])
       .order("created_at", { ascending: false })
       .limit(50),
+
+    supabase
+      .from("events")
+      .select("event_type, entity_type, metadata, created_at")
+      .eq("user_id", user.id)
+      .eq("event_type", "application_action_completed")
+      .eq("entity_type", "application_action")
+      .order("created_at", { ascending: false })
+      .limit(100),
   ]);
 
   const result = calculateRecovery({
@@ -152,6 +162,35 @@ export async function GET() {
         };
       })
       .filter((action) => action.title && action.href),
+
+    applicationActionEvents: (applicationActionEventsResult.data ?? [])
+      .map((event) => {
+        const metadata =
+          event.metadata &&
+          typeof event.metadata === "object" &&
+          !Array.isArray(event.metadata)
+            ? (event.metadata as {
+                applicationId?: string;
+                company?: string;
+                role?: string;
+                action?: string;
+                dueDate?: string | null;
+                completedAt?: string;
+              })
+            : {};
+
+        return {
+          applicationId: metadata.applicationId ?? null,
+          company: metadata.company ?? null,
+          role: metadata.role ?? null,
+          action: metadata.action ?? null,
+          dueDate: metadata.dueDate ?? null,
+          completedAt:
+            metadata.completedAt ??
+            event.created_at ??
+            null,
+        };
+      }),
 
     progressionEvents: (progressionEventsResult.data ?? []).map(
       (event) => ({
