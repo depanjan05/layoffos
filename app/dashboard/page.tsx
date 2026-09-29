@@ -131,6 +131,16 @@ type RecoveryEngineResult = {
       signals: string[];
       decision: string;
     };
+    decisionTrace?: {
+      basePriority: number;
+      adjustments: {
+        label: string;
+        delta: number;
+      }[];
+      finalScore: number;
+      selection: "SELECTED" | "NOT_SELECTED";
+      selectionReason: string;
+    };
   }[];
   transition: {
     nextState: string;
@@ -1926,6 +1936,73 @@ export default function DashboardPage() {
 
                                         <p className="mt-1.5 text-xs leading-5 text-[#bdbdb6]">
                                           {action.explanation.decision}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
+
+
+                                  {action.decisionTrace && (
+                                    <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-3 py-3">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#b8b8b0]">
+                                          Decision trace
+                                        </p>
+
+                                        <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] font-bold text-[#d0d0c9]">
+                                          {action.decisionTrace.selection}
+                                        </span>
+                                      </div>
+
+                                      <div className="mt-3 space-y-2">
+                                        <div className="flex items-center justify-between gap-4">
+                                          <span className="text-xs text-[#8f8f88]">
+                                            Base priority
+                                          </span>
+
+                                          <span className="text-xs font-bold text-[#d0d0c9]">
+                                            {action.decisionTrace.basePriority}
+                                          </span>
+                                        </div>
+
+                                        {action.decisionTrace.adjustments.map(
+                                          (adjustment, index) => (
+                                            <div
+                                              key={`${adjustment.label}-${adjustment.delta}-${index}`}
+                                              className="flex items-center justify-between gap-4"
+                                            >
+                                              <span className="min-w-0 text-xs text-[#8f8f88]">
+                                                {adjustment.label}
+                                              </span>
+
+                                              <span className="shrink-0 text-xs font-bold text-[#d0d0c9]">
+                                                {adjustment.delta > 0 ? "+" : ""}
+                                                {adjustment.delta}
+                                              </span>
+                                            </div>
+                                          )
+                                        )}
+
+                                        <div className="border-t border-white/10 pt-2">
+                                          <div className="flex items-center justify-between gap-4">
+                                            <span className="text-xs font-bold text-[#b8b8b0]">
+                                              Final score
+                                            </span>
+
+                                            <span className="text-sm font-bold text-white">
+                                              {action.decisionTrace.finalScore}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-3 rounded-lg bg-white/[0.04] px-3 py-2.5">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8f8f88]">
+                                          Selection
+                                        </p>
+
+                                        <p className="mt-1.5 text-xs leading-5 text-[#bdbdb6]">
+                                          {action.decisionTrace.selectionReason}
                                         </p>
                                       </div>
                                     </div>
