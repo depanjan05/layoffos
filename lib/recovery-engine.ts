@@ -2535,6 +2535,14 @@ function getProgressionSignal(
     return "ADVANCING";
   }
 
+  if (
+    previousIndex !== -1 &&
+    newIndex !== -1 &&
+    newIndex < previousIndex
+  ) {
+    return "SETBACK";
+  }
+
   return "NEUTRAL";
 }
 
