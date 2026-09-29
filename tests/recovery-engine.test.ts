@@ -2654,6 +2654,102 @@ test("decision trace marks selected candidates separately from alternatives", ()
   }
 });
 
+test("decision trace exposes structured selection context", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  for (const action of actions) {
+    const trace = action.decisionTrace;
+    assert.ok(trace);
+
+    assert.ok(
+      [
+        "CRITICAL_RUNWAY",
+        "DIVERSITY",
+        "RANKED_FILL",
+      ].includes(trace.selectionContext.pass),
+    );
+
+    assert.ok(trace.selectionContext.reason);
+
+    assert.equal(
+      trace.selectionContext.reason,
+      trace.selectionReason,
+    );
+
+    for (const candidate of trace.alternatives) {
+      assert.equal(
+        candidate.selectionContext.pass,
+        "NOT_SELECTED",
+      );
+
+      assert.equal(
+        candidate.selectionContext.reason,
+        candidate.selectionReason,
+      );
+    }
+  }
+});
+
+test("decision trace identifies category competition for unselected candidates", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  const alternatives = actions.flatMap(
+    (action) => action.decisionTrace?.alternatives ?? [],
+  );
+
+  assert.ok(alternatives.length > 0);
+
+  const categoryCompetition = alternatives.filter(
+    (candidate) =>
+      candidate.selectionContext.competingCandidate,
+  );
+
+  assert.ok(categoryCompetition.length > 0);
+
+  for (const candidate of categoryCompetition) {
+    assert.equal(
+      candidate.selectionContext.pass,
+      "NOT_SELECTED",
+    );
+
+    assert.ok(
+      candidate.selectionContext.reason.includes(
+        "stronger candidate already represented this category",
+      ),
+    );
+
+    assert.ok(
+      candidate.selectionContext.competingCandidate,
+    );
+  }
+});
+
 test("decision trace preserves the selected recommendation set", () => {
   const actions = getActions(
     actionInput(),

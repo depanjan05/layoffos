@@ -20,6 +20,12 @@ export type RecoveryActionExplanation = {
   decision: string;
 };
 
+export type RecoveryDecisionSelectionContext = {
+  pass: "CRITICAL_RUNWAY" | "DIVERSITY" | "RANKED_FILL" | "NOT_SELECTED";
+  reason: string;
+  competingCandidate?: string;
+};
+
 export type RecoveryDecisionCandidate = {
   title: string;
   href: string;
@@ -34,6 +40,7 @@ export type RecoveryDecisionCandidate = {
   rank: number;
   selection: "SELECTED" | "NOT_SELECTED";
   selectionReason: string;
+  selectionContext: RecoveryDecisionSelectionContext;
 };
 
 export type RecoveryActionDecisionTrace = {
@@ -2799,24 +2806,93 @@ export function getActions(
     candidateRanks.set(item.index, index + 1);
   });
 
+  const selectedCategoryOwners = new Map<string, string>();
+
+  for (const item of selectedActions) {
+    if (!selectedCategoryOwners.has(item.category)) {
+      selectedCategoryOwners.set(item.category, item.action.title);
+    }
+  }
+
+  const selectionContexts = new Map<
+    number,
+    RecoveryDecisionSelectionContext
+  >();
+
+  for (const item of selectedActions) {
+    const reason =
+      selectionReasons.get(item.index) ??
+      "Selected for recovery recommendation";
+
+    const pass: RecoveryDecisionSelectionContext["pass"] =
+      reason === "Selected by critical-runway constraint"
+        ? "CRITICAL_RUNWAY"
+        : reason === "Selected during category-diversity pass"
+          ? "DIVERSITY"
+          : "RANKED_FILL";
+
+    selectionContexts.set(item.index, {
+      pass,
+      reason,
+    });
+  }
+
   const candidateTraces: RecoveryDecisionCandidate[] =
-    sortedActions.map((item) => ({
-      title: item.action.title,
-      href: item.action.href,
-      priority: item.action.priority,
-      category: item.category,
-      basePriority: item.basePriority,
-      adjustments: item.adjustments,
-      finalScore: item.score,
-      rank: candidateRanks.get(item.index) ?? 0,
-      selection: selectedIndexes.has(item.index)
-        ? "SELECTED"
-        : "NOT_SELECTED",
-      selectionReason: selectedIndexes.has(item.index)
-        ? selectionReasons.get(item.index) ??
-          "Selected for recovery recommendation"
-        : "Not selected because stronger candidates filled the available recommendation slots",
-    }));
+    sortedActions.map((item) => {
+      const isSelected = selectedIndexes.has(item.index);
+
+      if (isSelected) {
+        const context = selectionContexts.get(item.index) ?? {
+          pass: "RANKED_FILL" as const,
+          reason: "Selected for recovery recommendation",
+        };
+
+        return {
+          title: item.action.title,
+          href: item.action.href,
+          priority: item.action.priority,
+          category: item.category,
+          basePriority: item.basePriority,
+          adjustments: item.adjustments,
+          finalScore: item.score,
+          rank: candidateRanks.get(item.index) ?? 0,
+          selection: "SELECTED" as const,
+          selectionReason: context.reason,
+          selectionContext: context,
+        };
+      }
+
+      const competingCandidate =
+        selectedCategoryOwners.get(item.category);
+
+      const selectionContext: RecoveryDecisionSelectionContext =
+        competingCandidate
+          ? {
+              pass: "NOT_SELECTED",
+              reason:
+                "Not selected because a stronger candidate already represented this category",
+              competingCandidate,
+            }
+          : {
+              pass: "NOT_SELECTED",
+              reason:
+                "Not selected because stronger candidates filled the available recommendation slots",
+            };
+
+      return {
+        title: item.action.title,
+        href: item.action.href,
+        priority: item.action.priority,
+        category: item.category,
+        basePriority: item.basePriority,
+        adjustments: item.adjustments,
+        finalScore: item.score,
+        rank: candidateRanks.get(item.index) ?? 0,
+        selection: "NOT_SELECTED" as const,
+        selectionReason: selectionContext.reason,
+        selectionContext,
+      };
+    });
 
   const finalActions = selectedActions
     .sort(
@@ -2848,6 +2924,11 @@ export function getActions(
         selectionReason:
           selectionReasons.get(index) ??
           "Selected for recovery recommendation",
+        selectionContext:
+          selectionContexts.get(index) ?? {
+            pass: "RANKED_FILL" as const,
+            reason: "Selected for recovery recommendation",
+          },
         alternatives: candidateTraces.filter(
           (candidate) =>
             candidate.selection === "NOT_SELECTED"

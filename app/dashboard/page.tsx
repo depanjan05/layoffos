@@ -141,6 +141,15 @@ type RecoveryEngineResult = {
       rank: number;
       selection: "SELECTED" | "NOT_SELECTED";
       selectionReason: string;
+      selectionContext: {
+        pass:
+          | "CRITICAL_RUNWAY"
+          | "DIVERSITY"
+          | "RANKED_FILL"
+          | "NOT_SELECTED";
+        reason: string;
+        competingCandidate?: string;
+      };
       alternatives: {
         title: string;
         href: string;
@@ -155,6 +164,15 @@ type RecoveryEngineResult = {
         rank: number;
         selection: "SELECTED" | "NOT_SELECTED";
         selectionReason: string;
+        selectionContext: {
+          pass:
+            | "CRITICAL_RUNWAY"
+            | "DIVERSITY"
+            | "RANKED_FILL"
+            | "NOT_SELECTED";
+          reason: string;
+          competingCandidate?: string;
+        };
       }[];
     };
   }[];
@@ -2020,6 +2038,18 @@ export default function DashboardPage() {
                                         <p className="mt-1.5 text-xs leading-5 text-[#bdbdb6]">
                                           {action.decisionTrace.selectionReason}
                                         </p>
+
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className="rounded-full border border-white/10 bg-white/[0.025] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8f8f88]">
+                            {action.decisionTrace.selectionContext.pass ===
+                            "CRITICAL_RUNWAY"
+                              ? "Critical runway"
+                              : action.decisionTrace.selectionContext.pass ===
+                                  "DIVERSITY"
+                                ? "Category diversity"
+                                : "Ranked fill"}
+                          </span>
+                        </div>
                                       </div>
 
                                       {action.decisionTrace.alternatives.length > 0 && (
@@ -2055,6 +2085,15 @@ export default function DashboardPage() {
                                                   <p className="mt-1.5 text-[11px] leading-4 text-[#777771]">
                                                     {candidate.selectionReason}
                                                   </p>
+
+                          {candidate.selectionContext.competingCandidate && (
+                            <p className="mt-1 text-[10px] leading-4 text-[#686862]">
+                              Competing candidate:{" "}
+                              <span className="text-[#8f8f88]">
+                                {candidate.selectionContext.competingCandidate}
+                              </span>
+                            </p>
+                          )}
                                                 </div>
                                               ))}
                                           </div>
