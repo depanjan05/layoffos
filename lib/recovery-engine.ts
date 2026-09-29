@@ -14,12 +14,19 @@ export type RecoveryPriority =
   | "INTERVIEWS"
   | "DIRECTION";
 
+export type RecoveryActionExplanation = {
+  why: string;
+  signals: string[];
+  decision: string;
+};
+
 export type RecoveryAction = {
   title: string;
   reason: string;
   href: string;
   priority: RecoveryPriority;
   evidence?: string;
+  explanation?: RecoveryActionExplanation;
 };
 
 export type RecoverySituation = {
@@ -1449,6 +1456,381 @@ function getActionEvidence(
   return undefined;
 }
 
+function getActionExplanation(
+  input: RecoveryEngineInput,
+  action: RecoveryAction,
+  state: RecoveryState,
+  runwayMonths: number | null,
+  pipelineSignal: PipelineSignal,
+  pipelineComposition: PipelineComposition,
+  evidence?: string
+): RecoveryActionExplanation {
+  const bottleneck = getRecoveryBottleneck(
+    state,
+    runwayMonths,
+    pipelineSignal,
+    pipelineComposition
+  );
+
+  const title = normalize(action.title);
+
+  const activeInterviews = pipelineComposition.activeInterviews;
+  const finalRounds = pipelineComposition.finalRounds;
+  const activeApplications = pipelineComposition.activeApplications;
+  const offers = pipelineComposition.offers;
+  const acceptedOffers = pipelineComposition.acceptedOffers;
+  const activeNetworkContacts = pipelineComposition.activeNetworkContacts;
+
+  let why: string;
+  let decision: string;
+  let signals: string[] = [];
+
+  if (title.includes("final-round talking points")) {
+    why =
+      finalRounds > 0
+        ? `A final-round opportunity is active, so preparation is now more important than adding more pipeline volume.`
+        : `The recovery plan is prioritizing interview execution and preparation.`;
+
+    decision =
+      "Prioritize execution of the strongest downstream opportunity.";
+
+    signals = [
+      `${finalRounds} final-round opportunit${finalRounds === 1 ? "y" : "ies"}`,
+      "FINAL ROUND recovery state",
+      "Final-round execution bottleneck",
+    ];
+  } else if (title.includes("final-round follow-up")) {
+    why =
+      "Your final-round record already has a follow-up or next action that needs attention.";
+
+    decision =
+      "Close the next communication step before moving attention elsewhere.";
+
+    signals = [
+      `${finalRounds} final-round opportunit${finalRounds === 1 ? "y" : "ies"}`,
+      "Follow-up or next action recorded",
+      "FINAL ROUND recovery state",
+    ];
+  } else if (title.includes("final-round logistics")) {
+    why =
+      "A final-round opportunity is active, making logistics and timing immediately important.";
+
+    decision =
+      "Remove execution friction from the strongest downstream opportunity.";
+
+    signals = [
+      `${finalRounds} final-round opportunit${finalRounds === 1 ? "y" : "ies"}`,
+      "FINAL ROUND recovery state",
+      "Execution bottleneck",
+    ];
+  } else if (title.includes("advance an active interview")) {
+    why =
+      activeInterviews > 0
+        ? `You have ${activeInterviews} active interview${
+            activeInterviews === 1 ? "" : "s"
+          } and no final round yet, so the next interview action is the clearest path forward.`
+        : "Interview execution is the current downstream recovery focus.";
+
+    decision =
+      "Move the strongest active interview toward the next pipeline stage.";
+
+    signals = [
+      `${activeInterviews} active interview${activeInterviews === 1 ? "" : "s"}`,
+      "No final round yet",
+      "INTERVIEWING recovery state",
+    ];
+  } else if (title.includes("prepare for your next interview")) {
+    why =
+      "An active interview opportunity needs preparation while the opportunity is still moving through the pipeline.";
+
+    decision =
+      "Protect the strongest active interview from avoidable execution gaps.";
+
+    signals = [
+      `${activeInterviews} active interview${activeInterviews === 1 ? "" : "s"}`,
+      "Interview-stage opportunity",
+      "INTERVIEWING recovery state",
+    ];
+  } else if (title.includes("review your interview follow-ups")) {
+    why =
+      "At least one active interview already has a follow-up or next action recorded.";
+
+    decision =
+      "Complete the outstanding interview action before adding unnecessary activity.";
+
+    signals = [
+      `${activeInterviews} active interview${activeInterviews === 1 ? "" : "s"}`,
+      "Follow-up or next action recorded",
+      "INTERVIEWING recovery state",
+    ];
+  } else if (title.includes("convert applications into conversations")) {
+    why =
+      activeApplications > 0
+        ? `You have ${activeApplications} active application${
+            activeApplications === 1 ? "" : "s"
+          } but no active interview, so conversion is currently more valuable than simply adding volume.`
+        : "The current recovery plan needs stronger application-to-conversation conversion.";
+
+    decision =
+      "Turn existing applications into conversations before expanding volume.";
+
+    signals = [
+      `${activeApplications} active application${
+        activeApplications === 1 ? "" : "s"
+      }`,
+      "No active interviews",
+      "APPLICATION_HEAVY pipeline",
+    ];
+  } else if (title.includes("review your active application pipeline")) {
+    why =
+      "Existing applications still need movement while the recovery pipeline is being managed.";
+
+    decision =
+      "Keep active opportunities moving instead of allowing applications to become passive entries.";
+
+    signals = [
+      `${activeApplications} active application${
+        activeApplications === 1 ? "" : "s"
+      }`,
+      "Active application pipeline",
+      state.replaceAll("_", " ") + " recovery state",
+    ];
+  } else if (
+    title.includes("add your first target application") ||
+    title.includes("add your next target application") ||
+    title.includes("add a new target opportunity")
+  ) {
+    why =
+      "The active search pipeline needs another concrete opportunity to create forward movement.";
+
+    decision =
+      "Create a specific opportunity rather than leaving the search pipeline empty.";
+
+    signals = [
+      "No downstream interview opportunity",
+      "Search pipeline needs depth",
+      state.replaceAll("_", " ") + " recovery state",
+    ];
+  } else if (title.includes("follow up with an active network contact")) {
+    why =
+      "You already have a networking follow-up recorded, so there is an immediate warm path that can be advanced.";
+
+    decision =
+      "Use the existing relationship before creating another cold path.";
+
+    signals = [
+      `${activeNetworkContacts} active network contact${
+        activeNetworkContacts === 1 ? "" : "s"
+      }`,
+      "Active network follow-up",
+      "NETWORKING priority",
+    ];
+  } else if (title.includes("turn a network contact into an opportunity")) {
+    why =
+      "You have active network relationships but no active application or interview pipeline.";
+
+    decision =
+      "Convert a warm relationship into a concrete opportunity.";
+
+    signals = [
+      `${activeNetworkContacts} active network contact${
+        activeNetworkContacts === 1 ? "" : "s"
+      }`,
+      "No active application or interview pipeline",
+      "NETWORKING priority",
+    ];
+  } else if (
+    title.includes("start a referral conversation") ||
+    title.includes("create a new networking path") ||
+    title.includes("reopen a warm referral path")
+  ) {
+    why =
+      "A warm networking path can add another opportunity while the current pipeline remains unresolved.";
+
+    decision =
+      "Create another path into the opportunity pipeline without relying only on applications.";
+
+    signals = [
+      "Networking path available",
+      "Pipeline needs additional capacity",
+      "NETWORKING priority",
+    ];
+  } else if (
+    title.includes("review your financial runway") ||
+    action.href === "/runway"
+  ) {
+    why =
+      runwayMonths !== null && runwayMonths < 4
+        ? `Your estimated runway is ${runwayMonths.toFixed(
+            1
+          )} months, so financial visibility is an immediate recovery constraint.`
+        : "Financial visibility keeps the recovery strategy grounded in the time available.";
+
+    decision =
+      "Keep financial runway visible while making recovery decisions.";
+
+    signals = [
+      runwayMonths !== null
+        ? `${runwayMonths.toFixed(1)} months of estimated runway`
+        : "Runway data available",
+      "FINANCIAL priority",
+      "Recovery time horizon",
+    ];
+  } else if (title.includes("keep one backup opportunity moving")) {
+    why =
+      offers > 0 || acceptedOffers > 0
+        ? "An offer-stage opportunity is active, but keeping another path moving protects against an unresolved outcome."
+        : "The recovery pipeline benefits from maintaining another active path alongside the strongest opportunity.";
+
+    decision =
+      "Protect pipeline continuity while the strongest opportunity remains unresolved.";
+
+    signals = [
+      offers > 0
+        ? `${offers} offer-stage opportunit${offers === 1 ? "y" : "ies"}`
+        : acceptedOffers > 0
+          ? `${acceptedOffers} accepted offer${
+              acceptedOffers === 1 ? "" : "s"
+            }`
+          : "Active downstream opportunity",
+      "Backup pipeline recommended",
+      state.replaceAll("_", " ") + " recovery state",
+    ];
+  } else if (title.includes("confirm your accepted offer")) {
+    why =
+      "An offer has already been accepted, so the recovery process is now about completing the employment transition.";
+
+    decision =
+      "Close the remaining transition details instead of treating the search as the primary task.";
+
+    signals = [
+      `${acceptedOffers} accepted offer${acceptedOffers === 1 ? "" : "s"}`,
+      "OFFER recovery state",
+      "Transition completion",
+    ];
+  } else if (
+    title.includes("review your active offer") ||
+    title.includes("review your offer pipeline")
+  ) {
+    why =
+      "An offer-stage opportunity is active but has not yet completed the decision and transition process.";
+
+    decision =
+      "Resolve the active offer before treating the recovery pipeline as complete.";
+
+    signals = [
+      `${offers} offer-stage opportunit${offers === 1 ? "y" : "ies"}`,
+      "Active offer decision",
+      "OFFER recovery state",
+    ];
+  } else if (title.includes("review compensation and decision dates")) {
+    why =
+      "An offer-stage process makes compensation and timing materially important to the next decision.";
+
+    decision =
+      "Make the financial and timing implications explicit before the next transition.";
+
+    signals = [
+      offers > 0
+        ? `${offers} offer-stage opportunit${offers === 1 ? "y" : "ies"}`
+        : "Offer-stage decision",
+      "Compensation and timing",
+      "OFFER priority",
+    ];
+  } else if (
+    title.includes("identify 3 replacement target roles") ||
+    title.includes("replacement target")
+  ) {
+    why =
+      "A recent opportunity setback reduced pipeline capacity, so replacement opportunities are needed to restore coverage.";
+
+    decision =
+      "Replace lost pipeline capacity with concrete target opportunities.";
+
+    signals = [
+      "Recent setback signal",
+      "Pipeline capacity reduced",
+      "APPLICATIONS priority",
+    ];
+  } else if (title.includes("complete your first 72 hours")) {
+    why =
+      "The immediate post-layoff workflow has not yet been fully established.";
+
+    decision =
+      "Stabilize the basic recovery operating system before adding unnecessary activity.";
+
+    signals = [
+      "JUST LAID OFF recovery state",
+      "Immediate recovery workflow",
+      "Stabilization required",
+    ];
+  } else if (title.includes("confirm your financial runway")) {
+    why =
+      "Knowing the actual runway gives every subsequent recovery decision a realistic time horizon.";
+
+    decision =
+      "Establish the financial baseline before optimizing the search.";
+
+    signals = [
+      "Immediate post-layoff stage",
+      "Financial baseline missing",
+      "FINANCIAL priority",
+    ];
+  } else if (title.includes("build your target company list")) {
+    why =
+      "A defined target-company set turns a broad search into a concrete opportunity pipeline.";
+
+    decision =
+      "Create a focused target universe for the next search actions.";
+
+    signals = [
+      "Target company pipeline",
+      "Search direction",
+      "APPLICATIONS priority",
+    ];
+  } else if (state === "RECOVERED") {
+    why =
+      "Employment status indicates that the recovery process has reached its closeout stage.";
+
+    decision =
+      "Close the recovery loop and preserve the useful record.";
+
+    signals = [
+      "RECOVERED state",
+      "Employment resumed",
+      "Recovery closeout",
+    ];
+  } else {
+    why = `The current recovery evidence points toward ${bottleneck.focus.toLowerCase()}.`;
+
+    decision =
+      action.priority === "INTERVIEWS"
+        ? "Interview execution is the current downstream recovery focus."
+        : action.priority === "APPLICATIONS"
+          ? "Building or converting the opportunity pipeline is the current search focus."
+          : action.priority === "NETWORKING"
+            ? "Networking is being used as an additional path into the opportunity pipeline."
+            : action.priority === "FINANCIAL"
+              ? "Financial visibility is being prioritized because runway can constrain the recovery strategy."
+              : "This action supports the current recovery operating structure.";
+
+    signals = [
+      bottleneck.headline,
+      `${state.replaceAll("_", " ")} recovery state`,
+    ];
+
+    if (evidence) {
+      signals.unshift(evidence);
+    }
+  }
+
+  return {
+    why,
+    signals: [...new Set(signals)].filter(Boolean).slice(0, 3),
+    decision,
+  };
+}
+
 export function getActions(
   input: RecoveryEngineInput,
   state: RecoveryState,
@@ -2367,6 +2749,15 @@ export function getActions(
     .map(({ action, evidence }) => ({
       ...action,
       evidence,
+      explanation: getActionExplanation(
+        input,
+        action,
+        state,
+        runwayMonths,
+        pipelineSignal,
+        pipelineComposition,
+        evidence
+      ),
     }));
 
 return finalActions;

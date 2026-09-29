@@ -126,6 +126,11 @@ type RecoveryEngineResult = {
     href: string;
     priority: string;
     evidence?: string;
+    explanation?: {
+      why: string;
+      signals: string[];
+      decision: string;
+    };
   }[];
   transition: {
     nextState: string;
@@ -1885,10 +1890,45 @@ export default function DashboardPage() {
                                     {action.reason}
                                   </p>
 
-                                  {action.evidence && (
-                                    <p className="mt-2 text-xs leading-5 text-[#a9a9a2]">
-                                      Evidence: {action.evidence}
-                                    </p>
+                                  {action.explanation && (
+                                    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+                                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#b8b8b0]">
+                                        Why this?
+                                      </p>
+
+                                      <p className="mt-1.5 text-xs leading-5 text-[#d0d0c9]">
+                                        {action.explanation.why}
+                                      </p>
+
+                                      {action.explanation.signals.length > 0 && (
+                                        <div className="mt-3">
+                                          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8f8f88]">
+                                            Signals
+                                          </p>
+
+                                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                            {action.explanation.signals.map((signal) => (
+                                              <span
+                                                key={signal}
+                                                className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] leading-4 text-[#bdbdb6]"
+                                              >
+                                                {signal}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      <div className="mt-3">
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8f8f88]">
+                                          Decision
+                                        </p>
+
+                                        <p className="mt-1.5 text-xs leading-5 text-[#bdbdb6]">
+                                          {action.explanation.decision}
+                                        </p>
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
 
