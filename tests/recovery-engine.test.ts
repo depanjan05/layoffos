@@ -5,6 +5,8 @@ import {
   getActionMemory,
   getApplicationActionMemory,
   getActions,
+  getRecoveryDecision,
+  calculateRecovery,
   getPipelineHealth,
   getProgressionSignal,
   getRecoveryOutcome,
@@ -2897,4 +2899,227 @@ test("ranked-fill selections are explicitly recorded as ranked-fill decisions", 
       "Selected during ranked fill pass",
     );
   }
+});
+
+test("recovery decision closes out a recovered state", () => {
+  const decision = getRecoveryDecision(
+    actionInput({
+      employmentStatus: "employed",
+    }),
+    "RECOVERED",
+    6,
+    null,
+    "NEUTRAL",
+    "ACTIVE",
+    pipelineComposition(),
+  );
+
+  assert.equal(decision.decision, "Close out recovery");
+  assert.equal(decision.confidence, "HIGH");
+  assert.ok(
+    decision.evidence.includes("Recovery state is RECOVERED"),
+  );
+});
+
+test("recovery decision prioritizes offer execution", () => {
+  const decision = getRecoveryDecision(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      interviewOffers: 1,
+    }),
+  );
+
+  assert.equal(
+    decision.decision,
+    "Prioritize offer execution",
+  );
+  assert.equal(decision.confidence, "HIGH");
+  assert.ok(
+    decision.evidence.some((item) =>
+      item.includes("offer-stage recovery opportunity"),
+    ),
+  );
+});
+
+test("critical runway becomes the strategic decision constraint", () => {
+  const decision = getRecoveryDecision(
+    actionInput({
+      applications: [{ stage: "Interview" }],
+    }),
+    "INTERVIEWING",
+    1.5,
+    null,
+    "NEUTRAL",
+    "ACTIVE",
+    pipelineComposition({
+      activeApplications: 3,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.equal(
+    decision.decision,
+    "Stabilize runway while maintaining recovery momentum",
+  );
+  assert.equal(decision.confidence, "HIGH");
+  assert.ok(
+    decision.constraints.some((item) =>
+      item.includes("critical recovery constraint"),
+    ),
+  );
+  assert.ok(
+    decision.evidence.includes(
+      "Active interview opportunities still exist",
+    ),
+  );
+});
+
+test("recovery decision prioritizes final-round progression", () => {
+  const decision = getRecoveryDecision(
+    actionInput(),
+    "FINAL_ROUND",
+    6,
+    null,
+    "NEUTRAL",
+    "ACTIVE",
+    pipelineComposition({
+      activeInterviews: 1,
+      finalRounds: 1,
+    }),
+  );
+
+  assert.equal(
+    decision.decision,
+    "Prioritize final-round progression",
+  );
+  assert.equal(decision.confidence, "HIGH");
+});
+
+test("recovery decision prioritizes interview progression", () => {
+  const decision = getRecoveryDecision(
+    actionInput(),
+    "INTERVIEWING",
+    6,
+    null,
+    "NEUTRAL",
+    "ACTIVE",
+    pipelineComposition({
+      activeInterviews: 2,
+    }),
+  );
+
+  assert.equal(
+    decision.decision,
+    "Prioritize interview progression",
+  );
+  assert.equal(decision.confidence, "HIGH");
+});
+
+test("recovery decision rebuilds the pipeline after a setback", () => {
+  const progression = {
+    company: "Example Corp",
+    previousStage: "Interview",
+    newStage: "Rejected",
+    type: "interview",
+  };
+
+  const decision = getRecoveryDecision(
+    actionInput(),
+    "SEARCHING",
+    6,
+    progression,
+    "SETBACK",
+    "SETBACK",
+    pipelineComposition({
+      activeApplications: 2,
+    }),
+  );
+
+  assert.equal(
+    decision.decision,
+    "Rebuild the recovery pipeline",
+  );
+  assert.equal(decision.confidence, "MEDIUM");
+  assert.ok(
+    decision.evidence.some((item) =>
+      item.includes("Example Corp"),
+    ),
+  );
+});
+
+test("recovery decision prioritizes application conversion", () => {
+  const decision = getRecoveryDecision(
+    actionInput(),
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "ACTIVE",
+    pipelineComposition({
+      activeApplications: 6,
+      activeInterviews: 0,
+      finalRounds: 0,
+      offers: 0,
+    }),
+  );
+
+  assert.equal(
+    decision.decision,
+    "Prioritize application conversion",
+  );
+  assert.equal(decision.confidence, "HIGH");
+  assert.ok(
+    decision.evidence.some((item) =>
+      item.includes("active applications"),
+    ),
+  );
+});
+
+test("recovery decision builds the pipeline when downstream recovery is thin", () => {
+  const decision = getRecoveryDecision(
+    actionInput(),
+    "STABILIZING",
+    6,
+    null,
+    "NEUTRAL",
+    "THIN",
+    pipelineComposition(),
+  );
+
+  assert.equal(
+    decision.decision,
+    "Build recovery pipeline",
+  );
+  assert.equal(decision.confidence, "MEDIUM");
+  assert.ok(
+    decision.evidence.includes(
+      "The recovery pipeline is thin",
+    ),
+  );
+});
+
+test("recovery engine exposes the strategic recovery decision", () => {
+  const input = actionInput({
+    applications: [
+      { stage: "Applied" },
+      { stage: "Applied" },
+      { stage: "Applied" },
+    ],
+    interviews: [],
+  });
+
+  const result = calculateRecovery(input);
+
+  assert.ok(result.recoveryDecision);
+  assert.equal(
+    result.recoveryDecision.decision,
+    "Prioritize application conversion",
+  );
+  assert.equal(result.recoveryDecision.confidence, "HIGH");
 });

@@ -44,6 +44,14 @@ export type RecoveryDecisionCandidate = {
   selectionContext: RecoveryDecisionSelectionContext;
 };
 
+export type RecoveryDecision = {
+  decision: string;
+  objective: string;
+  evidence: string[];
+  constraints: string[];
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+};
+
 export type RecoveryActionDecisionTrace = {
   basePriority: number;
   adjustments: Array<{
@@ -901,6 +909,7 @@ export type RecoveryEngineResult = {
   actionMemory: ActionMemory;
   weeklyPlanTaskEffect: WeeklyPlanTaskEffect;
   priorities: RecoveryPriority[];
+  recoveryDecision: RecoveryDecision;
   actions: RecoveryAction[];
   transition: RecoveryTransition;
   recentProgression: RecentProgression | null;
@@ -1866,6 +1875,265 @@ function getActionExplanation(
     why,
     signals: [...new Set(signals)].filter(Boolean).slice(0, 3),
     decision,
+  };
+}
+
+export function getRecoveryDecision(
+  input: RecoveryEngineInput,
+  state: RecoveryState,
+  runwayMonths: number | null,
+  recentProgression: RecentProgression | null,
+  progressionSignal: ProgressionSignal,
+  pipelineSignal: PipelineSignal,
+  pipelineComposition: PipelineComposition,
+): RecoveryDecision {
+  const evidence: string[] = [];
+  const constraints: string[] = [];
+
+  const hasAcceptedOffer =
+    pipelineComposition.acceptedOffers > 0;
+
+  const hasOffer =
+    pipelineComposition.offers > 0;
+
+  const hasFinalRound =
+    pipelineComposition.finalRounds > 0;
+
+  const hasActiveInterviews =
+    pipelineComposition.activeInterviews > 0;
+
+  const hasActiveApplications =
+    pipelineComposition.activeApplications > 0;
+
+  const hasCriticalRunway =
+    runwayMonths !== null && runwayMonths < 2;
+
+  const hasLimitedRunway =
+    runwayMonths !== null &&
+    runwayMonths >= 2 &&
+    runwayMonths < 4;
+
+  const isApplicationConversionContext =
+    hasActiveApplications &&
+    pipelineComposition.activeInterviews === 0 &&
+    pipelineComposition.finalRounds === 0 &&
+    pipelineComposition.offers === 0;
+
+  if (state === "RECOVERED") {
+    evidence.push("Recovery state is RECOVERED");
+
+    return {
+      decision: "Close out recovery",
+      objective:
+        "Complete the transition into stable employment and preserve the recovery gains.",
+      evidence,
+      constraints,
+      confidence: "HIGH",
+    };
+  }
+
+  if (hasAcceptedOffer || hasOffer || state === "OFFER") {
+    evidence.push("An active offer-stage recovery opportunity exists");
+
+    if (hasAcceptedOffer) {
+      evidence.push("An accepted offer is present");
+    }
+
+    if (hasOffer) {
+      evidence.push("An offer-stage opportunity is present");
+    }
+
+    if (runwayMonths !== null) {
+      evidence.push(
+        `Runway is ${runwayMonths} month${runwayMonths === 1 ? "" : "s"}`,
+      );
+    }
+
+    constraints.push(
+      "Recommendation capacity should remain focused on completing the active recovery transition.",
+    );
+
+    return {
+      decision: "Prioritize offer execution",
+      objective:
+        "Convert the strongest active offer opportunity into a completed recovery transition.",
+      evidence: [...new Set(evidence)],
+      constraints,
+      confidence: "HIGH",
+    };
+  }
+
+  if (hasCriticalRunway) {
+    evidence.push("Runway is below two months");
+
+    if (hasActiveInterviews) {
+      evidence.push("Active interview opportunities still exist");
+    }
+
+    if (hasActiveApplications) {
+      evidence.push("Active application opportunities still exist");
+    }
+
+    constraints.push(
+      "Financial runway is a critical recovery constraint.",
+    );
+
+    constraints.push(
+      "The recovery strategy must preserve the shortest viable path back to employment.",
+    );
+
+    return {
+      decision: "Stabilize runway while maintaining recovery momentum",
+      objective:
+        "Protect financial runway while preserving the shortest viable path back to employment.",
+      evidence: [...new Set(evidence)],
+      constraints: [...new Set(constraints)],
+      confidence: "HIGH",
+    };
+  }
+
+  if (hasFinalRound || state === "FINAL_ROUND") {
+    evidence.push("A final-round recovery opportunity exists");
+
+    if (recentProgression && progressionSignal === "ADVANCING") {
+      evidence.push(
+        `Recent progression advanced at ${recentProgression.company}`,
+      );
+    }
+
+    constraints.push(
+      "Near-term interview execution takes precedence over broad pipeline expansion.",
+    );
+
+    return {
+      decision: "Prioritize final-round progression",
+      objective:
+        "Convert the strongest late-stage opportunity into the next recovery transition.",
+      evidence: [...new Set(evidence)],
+      constraints,
+      confidence: "HIGH",
+    };
+  }
+
+  if (hasActiveInterviews || state === "INTERVIEWING") {
+    evidence.push("Active interview opportunities exist");
+
+    if (pipelineComposition.finalRounds > 0) {
+      evidence.push("The pipeline contains a final-round opportunity");
+    }
+
+    constraints.push(
+      "Interview progression should be protected before broad application volume is increased.",
+    );
+
+    return {
+      decision: "Prioritize interview progression",
+      objective:
+        "Move active interview opportunities toward final rounds or offers.",
+      evidence: [...new Set(evidence)],
+      constraints,
+      confidence: "HIGH",
+    };
+  }
+
+  if (progressionSignal === "SETBACK" || progressionSignal === "CLOSED") {
+    evidence.push(
+      progressionSignal === "SETBACK"
+        ? "The latest tracked opportunity produced a setback"
+        : "The latest tracked opportunity was closed",
+    );
+
+    if (recentProgression) {
+      evidence.push(
+        `${recentProgression.company} is the latest tracked opportunity change`,
+      );
+    }
+
+    if (hasLimitedRunway) {
+      evidence.push("Runway is below four months");
+
+      constraints.push(
+        "Limited runway reduces tolerance for an extended search without measurable pipeline progress.",
+      );
+    }
+
+    return {
+      decision: "Rebuild the recovery pipeline",
+      objective:
+        "Replace lost opportunity capacity while learning from the latest pipeline change.",
+      evidence: [...new Set(evidence)],
+      constraints: [...new Set(constraints)],
+      confidence: "MEDIUM",
+    };
+  }
+
+  if (isApplicationConversionContext) {
+    evidence.push(
+      `${pipelineComposition.activeApplications} active application${pipelineComposition.activeApplications === 1 ? "" : "s"} in the pipeline`,
+    );
+
+    evidence.push(
+      "Active applications have not yet produced downstream interview opportunities",
+    );
+
+    if (pipelineSignal === "ACTIVE") {
+      evidence.push("The recovery pipeline is active");
+    }
+
+    constraints.push(
+      "Additional application volume should not replace efforts to convert existing applications into conversations.",
+    );
+
+    return {
+      decision: "Prioritize application conversion",
+      objective:
+        "Turn existing application volume into active conversations and downstream opportunities.",
+      evidence: [...new Set(evidence)],
+      constraints,
+      confidence: "HIGH",
+    };
+  }
+
+  if (hasActiveApplications) {
+    evidence.push(
+      `${pipelineComposition.activeApplications} active application${pipelineComposition.activeApplications === 1 ? "" : "s"} in the pipeline`,
+    );
+
+    return {
+      decision: "Maintain active job search",
+      objective:
+        "Keep qualified opportunities moving while strengthening downstream pipeline depth.",
+      evidence: [...new Set(evidence)],
+      constraints,
+      confidence: "MEDIUM",
+    };
+  }
+
+  if (hasLimitedRunway) {
+    evidence.push("Runway is below four months");
+
+    constraints.push(
+      "Limited runway reduces tolerance for an extended search without measurable pipeline progress.",
+    );
+  }
+
+  if (pipelineSignal === "BUILDING") {
+    evidence.push("The recovery pipeline is being built");
+  }
+
+  if (pipelineSignal === "THIN") {
+    evidence.push("The recovery pipeline is thin");
+  }
+
+  evidence.push("No downstream recovery opportunity is currently active");
+
+  return {
+    decision: "Build recovery pipeline",
+    objective:
+      "Create enough qualified opportunities to move the recovery process into active progression.",
+    evidence: [...new Set(evidence)],
+    constraints: [...new Set(constraints)],
+    confidence: "MEDIUM",
   };
 }
 
@@ -4085,6 +4353,15 @@ export function calculateRecovery(
       state,
       runwayMonths,
       pipelineSignal
+    ),
+    recoveryDecision: getRecoveryDecision(
+      input,
+      state,
+      runwayMonths,
+      recentProgression,
+      progressionSignal,
+      pipelineSignal,
+      pipelineComposition
     ),
     actions: getActions(
       input,
