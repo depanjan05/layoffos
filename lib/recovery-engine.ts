@@ -20,6 +20,22 @@ export type RecoveryActionExplanation = {
   decision: string;
 };
 
+export type RecoveryDecisionCandidate = {
+  title: string;
+  href: string;
+  priority: RecoveryPriority;
+  category: string;
+  basePriority: number;
+  adjustments: Array<{
+    label: string;
+    delta: number;
+  }>;
+  finalScore: number;
+  rank: number;
+  selection: "SELECTED" | "NOT_SELECTED";
+  selectionReason: string;
+};
+
 export type RecoveryActionDecisionTrace = {
   basePriority: number;
   adjustments: Array<{
@@ -27,8 +43,10 @@ export type RecoveryActionDecisionTrace = {
     delta: number;
   }>;
   finalScore: number;
+  rank: number;
   selection: "SELECTED" | "NOT_SELECTED";
   selectionReason: string;
+  alternatives: RecoveryDecisionCandidate[];
 };
 
 export type RecoveryAction = {
@@ -2766,6 +2784,40 @@ export function getActions(
     }
   }
 
+  // v1.37: materialize the complete candidate decision surface
+  // after the existing selection algorithm has finished.
+  //
+  // This is deliberately downstream of scoring and selection so
+  // recommendation behavior remains unchanged.
+  const selectedIndexes = new Set(
+    selectedActions.map((item) => item.index)
+  );
+
+  const candidateRanks = new Map<number, number>();
+
+  sortedActions.forEach((item, index) => {
+    candidateRanks.set(item.index, index + 1);
+  });
+
+  const candidateTraces: RecoveryDecisionCandidate[] =
+    sortedActions.map((item) => ({
+      title: item.action.title,
+      href: item.action.href,
+      priority: item.action.priority,
+      category: item.category,
+      basePriority: item.basePriority,
+      adjustments: item.adjustments,
+      finalScore: item.score,
+      rank: candidateRanks.get(item.index) ?? 0,
+      selection: selectedIndexes.has(item.index)
+        ? "SELECTED"
+        : "NOT_SELECTED",
+      selectionReason: selectedIndexes.has(item.index)
+        ? selectionReasons.get(item.index) ??
+          "Selected for recovery recommendation"
+        : "Not selected because stronger candidates filled the available recommendation slots",
+    }));
+
   const finalActions = selectedActions
     .sort(
       (a, b) =>
@@ -2791,10 +2843,15 @@ export function getActions(
         basePriority,
         adjustments,
         finalScore: score,
+        rank: candidateRanks.get(index) ?? 0,
         selection: "SELECTED" as const,
         selectionReason:
           selectionReasons.get(index) ??
           "Selected for recovery recommendation",
+        alternatives: candidateTraces.filter(
+          (candidate) =>
+            candidate.selection === "NOT_SELECTED"
+        ),
       },
     }));
 

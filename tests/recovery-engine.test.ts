@@ -2445,3 +2445,252 @@ test("decision trace preserves non-zero final scores and action identity", () =>
     );
   }
 });
+
+
+test("decision trace exposes unselected candidate alternatives", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  const alternatives = actions.flatMap((action) =>
+    action.decisionTrace?.alternatives ?? [],
+  );
+
+  assert.ok(
+    alternatives.length > 0,
+    "Expected at least one unselected candidate alternative",
+  );
+
+  for (const candidate of alternatives) {
+    assert.equal(candidate.selection, "NOT_SELECTED");
+  }
+});
+
+test("decision trace candidate ranks follow sorted candidate order", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  const selectedCandidates = actions.map((action) => {
+    const trace = action.decisionTrace;
+    assert.ok(trace);
+
+    return {
+      title: action.title,
+      href: action.href,
+      rank: trace.rank,
+    };
+  });
+
+  assert.ok(
+    selectedCandidates.every((candidate) => candidate.rank >= 1),
+    "Selected actions should have positive candidate ranks",
+  );
+
+  const alternativeMap = new Map<
+    string,
+    (typeof selectedCandidates)[number] & {
+      selection: "NOT_SELECTED";
+    }
+  >();
+
+  for (const action of actions) {
+    for (const candidate of action.decisionTrace?.alternatives ?? []) {
+      alternativeMap.set(`${candidate.title}|${candidate.href}`, {
+        title: candidate.title,
+        href: candidate.href,
+        rank: candidate.rank,
+        selection: candidate.selection,
+      });
+    }
+  }
+
+  const alternatives = [...alternativeMap.values()];
+
+  assert.ok(
+    alternatives.length > 0,
+    "Expected at least one unselected candidate",
+  );
+
+  for (const candidate of alternatives) {
+    assert.equal(candidate.selection, "NOT_SELECTED");
+  }
+
+  const allCandidates = [
+    ...selectedCandidates.map((candidate) => ({
+      title: candidate.title,
+      href: candidate.href,
+      rank: candidate.rank,
+    })),
+    ...alternatives.map((candidate) => ({
+      title: candidate.title,
+      href: candidate.href,
+      rank: candidate.rank,
+    })),
+  ];
+
+  const uniqueCandidateIds = new Set(
+    allCandidates.map(
+      (candidate) => `${candidate.title}|${candidate.href}`,
+    ),
+  );
+
+  assert.equal(
+    uniqueCandidateIds.size,
+    allCandidates.length,
+    "Candidate identities should be unique",
+  );
+
+  const uniqueRanks = new Set(
+    allCandidates.map((candidate) => candidate.rank),
+  );
+
+  assert.equal(
+    uniqueRanks.size,
+    allCandidates.length,
+    "Candidate ranks should be unique",
+  );
+
+  const sortedRanks = allCandidates
+    .map((candidate) => candidate.rank)
+    .sort((a, b) => a - b);
+
+  assert.deepEqual(
+    sortedRanks,
+    Array.from(
+      { length: sortedRanks.length },
+      (_, index) => index + 1,
+    ),
+  );
+});
+
+test("decision trace candidate scores equal base priority plus adjustments", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  for (const action of actions) {
+    const trace = action.decisionTrace;
+    assert.ok(trace);
+
+    const selectedScore =
+      trace.basePriority +
+      trace.adjustments.reduce(
+        (total, adjustment) => total + adjustment.delta,
+        0,
+      );
+
+    assert.equal(trace.finalScore, selectedScore);
+
+    for (const candidate of trace.alternatives) {
+      const candidateScore =
+        candidate.basePriority +
+        candidate.adjustments.reduce(
+          (total, adjustment) => total + adjustment.delta,
+          0,
+        );
+
+      assert.equal(candidate.finalScore, candidateScore);
+    }
+  }
+});
+
+test("decision trace marks selected candidates separately from alternatives", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  for (const action of actions) {
+    assert.ok(action.decisionTrace);
+    assert.equal(action.decisionTrace.selection, "SELECTED");
+
+    for (const candidate of action.decisionTrace.alternatives) {
+      assert.equal(candidate.selection, "NOT_SELECTED");
+    }
+  }
+});
+
+test("decision trace preserves the selected recommendation set", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+  assert.ok(actions.length <= 5);
+
+  const selectedTitles = actions.map((action) => action.title);
+
+  assert.equal(
+    new Set(selectedTitles).size,
+    selectedTitles.length,
+    "Selected recommendations should remain unique",
+  );
+
+  const alternatives = actions.flatMap((action) =>
+    action.decisionTrace?.alternatives ?? [],
+  );
+
+  for (const action of actions) {
+    assert.ok(
+      !alternatives.some(
+        (candidate) =>
+          candidate.title === action.title &&
+          candidate.href === action.href,
+      ),
+      "Selected actions should not appear as NOT_SELECTED alternatives",
+    );
+  }
+});
