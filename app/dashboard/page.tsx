@@ -19,6 +19,11 @@ type RecoveryEngineResult = {
     summary: string;
     implication: string;
   } | null;
+  bottleneck: {
+    headline: string;
+    summary: string;
+    focus: string;
+  };
   priorities: string[];
   actions: {
     title: string;
@@ -1011,6 +1016,24 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     )}
+
+                    <div className="mt-5 border-t border-[#deded8] pt-5">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                        What's blocking recovery
+                      </p>
+
+                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                        {recoveryEngine.bottleneck.headline}
+                      </p>
+
+                      <p className="mt-2 text-sm leading-5 text-[#66665f]">
+                        {recoveryEngine.bottleneck.summary}
+                      </p>
+
+                      <p className="mt-3 text-xs font-medium leading-5 text-[#888880]">
+                        Focus: {recoveryEngine.bottleneck.focus}
+                      </p>
+                    </div>
                   </div>
 
                   {recoveryEngine.situation.risk && (

@@ -34,6 +34,11 @@ export type RecoveryChange = {
   implication: string;
 };
 
+export type RecoveryBottleneck = {
+  headline: string;
+  summary: string;
+  focus: string;
+};
 
 export type RecoveryTransition = {
   nextState: RecoveryState;
@@ -144,6 +149,7 @@ export type RecoveryEngineResult = {
   pipelineComposition: PipelineComposition;
   situation: RecoverySituation;
   change: RecoveryChange | null;
+  bottleneck: RecoveryBottleneck;
 };
 
 function normalize(value?: string | null) {
@@ -1776,6 +1782,151 @@ function getProgressionSignal(
   return "NEUTRAL";
 }
 
+function getRecoveryBottleneck(
+  state: RecoveryState,
+  runwayMonths: number | null,
+  pipelineSignal: PipelineSignal,
+  pipelineComposition: PipelineComposition
+): RecoveryBottleneck {
+  const criticalRunway =
+    runwayMonths !== null && runwayMonths < 2;
+
+  /*
+   * v1.15 bottleneck hierarchy:
+   * 1. Critical runway
+   * 2. Accepted offer
+   * 3. Active offer
+   * 4. Final round
+   * 5. Active interviews
+   * 6. Application-heavy conversion gap
+   * 7. Setback / rebuilding
+   * 8. Thin pipeline
+   * 9. Stabilizing
+   */
+
+  if (criticalRunway) {
+    return {
+      headline: "Financial runway is becoming the binding constraint.",
+      summary:
+        `You have ${runwayMonths.toFixed(1)} months of estimated runway, so financial pressure can limit how long the current recovery strategy can continue unchanged.`,
+      focus:
+        "Protect runway while continuing the highest-priority active opportunities.",
+    };
+  }
+
+  if (pipelineComposition.acceptedOffers > 0) {
+    return {
+      headline: "The remaining constraint is completing the employment transition.",
+      summary:
+        "An offer has already been accepted, so the recovery process is no longer primarily about generating another opportunity.",
+      focus:
+        "Complete the transition details and update employment status when employment resumes.",
+    };
+  }
+
+  if (pipelineComposition.offers > 0) {
+    return {
+      headline: "The active offer is unresolved.",
+      summary:
+        "An offer-stage opportunity exists, but the recovery cycle remains open until the decision and transition details are resolved.",
+      focus:
+        "Resolve compensation, timing, decision, and transition details.",
+    };
+  }
+
+  if (pipelineComposition.finalRounds > 0 || state === "FINAL_ROUND") {
+    return {
+      headline: "The opportunity is in execution rather than discovery.",
+      summary:
+        "At least one opportunity has reached the final round, so generating more top-of-funnel activity is less important than executing the active opportunity well.",
+      focus:
+        "Maximize final-round preparation, logistics, and follow-up.",
+    };
+  }
+
+  if (
+    pipelineComposition.activeInterviews > 0 ||
+    state === "INTERVIEWING"
+  ) {
+    return {
+      headline: "Active interviews have not yet converted into a final round.",
+      summary:
+        `${pipelineComposition.activeInterviews} active interview${pipelineComposition.activeInterviews === 1 ? "" : "s"} are in progress, but the next meaningful transition has not yet been reached.`,
+      focus:
+        "Advance the strongest active interview toward the final round.",
+    };
+  }
+
+  if (
+    pipelineComposition.activeApplications >= 3 &&
+    pipelineComposition.activeInterviews === 0
+  ) {
+    return {
+      headline:
+        "You have applications, but the pipeline has not converted into enough conversations.",
+      summary:
+        `${pipelineComposition.activeApplications} active applications are currently in the pipeline with no active interviews.`,
+      focus:
+        "Convert existing applications into conversations and interview opportunities.",
+    };
+  }
+
+  if (pipelineSignal === "SETBACK") {
+    return {
+      headline: "A recent setback has reduced pipeline capacity.",
+      summary:
+        "A recent opportunity has left the active pipeline, so the immediate constraint is replacing the lost opportunity without losing momentum.",
+      focus:
+        "Rebuild pipeline capacity while preserving attention on remaining active opportunities.",
+    };
+  }
+
+  if (
+    pipelineComposition.activeApplications > 0 &&
+    pipelineComposition.activeInterviews === 0
+  ) {
+    return {
+      headline: "The active pipeline is still concentrated in applications.",
+      summary:
+        `${pipelineComposition.activeApplications} active application${pipelineComposition.activeApplications === 1 ? "" : "s"} are in progress, but none has yet produced an active interview.`,
+      focus:
+        "Create more conversion paths from applications into conversations.",
+    };
+  }
+
+  if (state === "STABILIZING" || state === "JUST_LAID_OFF") {
+    return {
+      headline: "The recovery operating baseline is not fully established.",
+      summary:
+        "The immediate constraint is creating enough financial, directional, and search structure to move into active recovery execution.",
+      focus:
+        "Establish the financial baseline, target direction, and first recovery workflow.",
+    };
+  }
+
+  if (
+    pipelineSignal === "THIN" ||
+    (pipelineComposition.activeApplications === 0 &&
+      pipelineComposition.activeInterviews === 0)
+  ) {
+    return {
+      headline: "Your active opportunity pipeline has not been established.",
+      summary:
+        "There are not enough active opportunities in the recovery pipeline to support downstream interview and offer transitions.",
+      focus:
+        "Build the first meaningful opportunity pipeline.",
+    };
+  }
+
+  return {
+    headline: "No single recovery bottleneck is dominant yet.",
+    summary:
+      "The current evidence does not indicate one constraint that clearly overrides the rest of the recovery pipeline.",
+    focus:
+      "Continue the current recovery plan and watch for the next meaningful pipeline change.",
+  };
+}
+
 function getRecoveryChange(
   progression: RecentProgression | null
 ): RecoveryChange | null {
@@ -1898,6 +2049,13 @@ export function calculateRecovery(
   );
   const change = getRecoveryChange(recentProgression);
 
+  const bottleneck = getRecoveryBottleneck(
+    state,
+    runwayMonths,
+    pipelineSignal,
+    pipelineComposition
+  );
+
   return {
     state,
     stateLabel: getStateLabel(state),
@@ -1924,5 +2082,6 @@ export function calculateRecovery(
     pipelineComposition,
     situation,
     change,
+    bottleneck,
   };
 }
