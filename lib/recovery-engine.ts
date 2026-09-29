@@ -48,6 +48,18 @@ export type RecoveryReadiness = {
   nextState: RecoveryState;
 };
 
+
+export type PipelineHealth = {
+  status: "HEALTHY" | "FRAGILE" | "THIN";
+  headline: string;
+  summary: string;
+  depth: number;
+  conversion: number | null;
+  progression: number | null;
+  balance: "BALANCED" | "APPLICATION_HEAVY" | "INTERVIEW_HEAVY" | "OFFER_HEAVY";
+  signals: string[];
+};
+
 export type RecoveryTransition = {
   nextState: RecoveryState;
   label: string;
@@ -149,6 +161,7 @@ export type RecoveryEngineResult = {
   stateLabel: string;
   stateReason: string;
   runwayMonths: number | null;
+  pipelineHealth: PipelineHealth;
   priorities: RecoveryPriority[];
   actions: RecoveryAction[];
   transition: RecoveryTransition;
@@ -1936,6 +1949,165 @@ function getRecoveryBottleneck(
   };
 }
 
+function getPipelineHealth(
+  pipelineComposition: PipelineComposition
+): PipelineHealth {
+  const {
+    activeApplications,
+    activeInterviews,
+    finalRounds,
+    offers,
+    acceptedOffers,
+  } = pipelineComposition;
+
+  const depth =
+    activeApplications +
+    activeInterviews +
+    finalRounds +
+    offers;
+
+  const conversion =
+    activeApplications > 0
+      ? Number(
+          (
+            ((activeInterviews + finalRounds + offers + acceptedOffers) /
+              activeApplications) *
+            100
+          ).toFixed(1)
+        )
+      : null;
+
+  const progression =
+    activeInterviews > 0
+      ? Number(
+          (
+            ((finalRounds + offers + acceptedOffers) /
+              activeInterviews) *
+            100
+          ).toFixed(1)
+        )
+      : null;
+
+  let balance: PipelineHealth["balance"] = "BALANCED";
+
+  if (
+    activeApplications >= 3 &&
+    activeInterviews === 0 &&
+    finalRounds === 0 &&
+    offers === 0
+  ) {
+    balance = "APPLICATION_HEAVY";
+  } else if (
+    activeInterviews >= 2 &&
+    finalRounds === 0 &&
+    offers === 0
+  ) {
+    balance = "INTERVIEW_HEAVY";
+  } else if (offers > 0 || acceptedOffers > 0) {
+    balance = "OFFER_HEAVY";
+  }
+
+  const signals: string[] = [];
+
+  if (activeApplications > 0) {
+    signals.push(
+      `${activeApplications} active application${activeApplications === 1 ? "" : "s"}`
+    );
+  }
+
+  if (activeInterviews > 0) {
+    signals.push(
+      `${activeInterviews} active interview${activeInterviews === 1 ? "" : "s"}`
+    );
+  }
+
+  if (finalRounds > 0) {
+    signals.push(
+      `${finalRounds} final-round opportunit${finalRounds === 1 ? "y" : "ies"}`
+    );
+  }
+
+  if (offers > 0) {
+    signals.push(
+      `${offers} offer-stage opportunit${offers === 1 ? "y" : "ies"}`
+    );
+  }
+
+  if (acceptedOffers > 0) {
+    signals.push(
+      `${acceptedOffers} accepted offer${acceptedOffers === 1 ? "" : "s"}`
+    );
+  }
+
+  if (acceptedOffers > 0 || offers > 0) {
+    return {
+      status: "HEALTHY",
+      headline: "The pipeline has downstream opportunity depth.",
+      summary:
+        "The recovery pipeline contains an offer-stage or accepted opportunity, providing meaningful downstream coverage.",
+      depth,
+      conversion,
+      progression,
+      balance,
+      signals,
+    };
+  }
+
+  if (finalRounds > 0 || activeInterviews > 0) {
+    return {
+      status: "HEALTHY",
+      headline: "The pipeline has active conversation depth.",
+      summary:
+        "The recovery pipeline has moved beyond applications into active interview-stage opportunities.",
+      depth,
+      conversion,
+      progression,
+      balance,
+      signals,
+    };
+  }
+
+  if (activeApplications >= 3) {
+    return {
+      status: "FRAGILE",
+      headline: "The pipeline has volume but limited downstream depth.",
+      summary:
+        "There are multiple active applications, but the current pipeline has not yet produced active interview-stage opportunities.",
+      depth,
+      conversion,
+      progression,
+      balance,
+      signals,
+    };
+  }
+
+  if (activeApplications > 0) {
+    return {
+      status: "FRAGILE",
+      headline: "The pipeline exists but remains thin.",
+      summary:
+        "There is an active application pipeline, but there is not yet enough downstream opportunity depth to provide strong coverage.",
+      depth,
+      conversion,
+      progression,
+      balance,
+      signals,
+    };
+  }
+
+  return {
+    status: "THIN",
+    headline: "The recovery pipeline has not yet been established.",
+    summary:
+      "There are no active applications or downstream opportunities currently providing pipeline coverage.",
+    depth,
+    conversion,
+    progression,
+    balance,
+    signals,
+  };
+}
+
 function getRecoveryReadiness(
   state: RecoveryState,
   pipelineComposition: PipelineComposition
@@ -2214,6 +2386,10 @@ export function calculateRecovery(
     pipelineComposition
   );
 
+  const pipelineHealth = getPipelineHealth(
+    pipelineComposition
+  );
+
   const readiness = getRecoveryReadiness(
     state,
     pipelineComposition
@@ -2224,6 +2400,7 @@ export function calculateRecovery(
     stateLabel: getStateLabel(state),
     stateReason: getStateReason(input, state),
     runwayMonths,
+    pipelineHealth,
     priorities: getPriorities(
       input,
       state,

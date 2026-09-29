@@ -9,6 +9,20 @@ type RecoveryEngineResult = {
   stateLabel: string;
   stateReason: string;
   runwayMonths: number | null;
+  pipelineHealth: {
+    status: "HEALTHY" | "FRAGILE" | "THIN";
+    headline: string;
+    summary: string;
+    depth: number;
+    conversion: number | null;
+    progression: number | null;
+    balance:
+      | "BALANCED"
+      | "APPLICATION_HEAVY"
+      | "INTERVIEW_HEAVY"
+      | "OFFER_HEAVY";
+    signals: string[];
+  };
   situation: {
     headline: string;
     summary: string;
@@ -1085,6 +1099,87 @@ export default function DashboardPage() {
                       <p className="mt-3 text-xs font-medium leading-5 text-[#888880]">
                         Next state: {recoveryEngine.readiness.nextState}
                       </p>
+                    </div>
+
+                    <div className="mt-5 border-t border-[#deded8] pt-5">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                          Pipeline health
+                        </p>
+
+                        <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
+                          {recoveryEngine.pipelineHealth.status}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                        {recoveryEngine.pipelineHealth.headline}
+                      </p>
+
+                      <p className="mt-2 text-sm leading-5 text-[#66665f]">
+                        {recoveryEngine.pipelineHealth.summary}
+                      </p>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Depth
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                            {recoveryEngine.pipelineHealth.depth}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Conversion
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                            {recoveryEngine.pipelineHealth.conversion !== null
+                              ? `${recoveryEngine.pipelineHealth.conversion}%`
+                              : "—"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Progression
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                            {recoveryEngine.pipelineHealth.progression !== null
+                              ? `${recoveryEngine.pipelineHealth.progression}%`
+                              : "—"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Balance
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                            {recoveryEngine.pipelineHealth.balance.replaceAll("_", " ")}
+                          </p>
+                        </div>
+                      </div>
+
+                      {recoveryEngine.pipelineHealth.signals.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                            Pipeline signals
+                          </p>
+
+                          <ul className="mt-2 space-y-1">
+                            {recoveryEngine.pipelineHealth.signals.map((signal) => (
+                              <li
+                                key={signal}
+                                className="text-xs leading-5 text-[#66665f]"
+                              >
+                                • {signal}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   </div>
 
