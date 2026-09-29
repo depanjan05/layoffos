@@ -92,6 +92,40 @@ export default function JobSearchPage() {
  const [hydrated, setHydrated] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
+  const [applicationIntelligence, setApplicationIntelligence] =
+    useState<{
+      effect: {
+        status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
+        headline: string;
+        summary: string;
+        evidence: string[];
+        recommendation: string;
+        action: string | null;
+        company: string | null;
+        role: string | null;
+        completedAt: string | null;
+        progression: {
+          previousStage: string;
+          newStage: string;
+        } | null;
+      };
+      recalibration: {
+        action: string | null;
+        decision: "REPEAT" | "MODIFY" | "HOLD";
+        reason: string;
+      };
+      memory: {
+        action: string | null;
+        instances: number;
+        positive: number;
+        negative: number;
+        neutral: number;
+        unknown: number;
+        confidence: "LOW" | "MEDIUM" | "HIGH";
+        recommendation: "REPEAT" | "MODIFY" | "RETIRE" | "HOLD";
+      };
+    } | null>(null);
+
 useEffect(() => {
     let cancelled = false;
 
@@ -223,7 +257,37 @@ useEffect(() => {
       }
     }
 
+    async function loadApplicationIntelligence() {
+      try {
+        const response = await fetch("/api/recovery-engine");
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        if (cancelled) return;
+
+        if (
+          data.applicationActionEffect &&
+          data.applicationActionRecalibration &&
+          data.applicationActionMemory
+        ) {
+          setApplicationIntelligence({
+            effect: data.applicationActionEffect,
+            recalibration: data.applicationActionRecalibration,
+            memory: data.applicationActionMemory,
+          });
+        }
+      } catch (error) {
+        console.error(
+          "Could not load application action intelligence:",
+          error
+        );
+      }
+    }
+
     loadApplications();
+    loadApplicationIntelligence();
 
     return () => {
       cancelled = true;
@@ -688,6 +752,182 @@ useEffect(() => {
                 </button>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {applicationIntelligence?.effect?.action && (
+        <section
+          style={{
+            marginBottom: "34px",
+            border: "1px solid #deded9",
+            borderRadius: "20px",
+            padding: "28px 30px",
+            background: "#ffffff",
+          }}
+        >
+          <div style={{ marginBottom: "20px" }}>
+            <p className="eyebrow">ACTION INTELLIGENCE · LATEST COMPLETED</p>
+
+            <h2
+              style={{
+                margin: "6px 0 0",
+                fontSize: "26px",
+                letterSpacing: "-0.03em",
+              }}
+            >
+              {applicationIntelligence.effect.action}
+            </h2>
+
+            {applicationIntelligence.effect.company &&
+              applicationIntelligence.effect.role && (
+                <p
+                  style={{
+                    margin: "7px 0 0",
+                    fontSize: "14px",
+                    color: "#777770",
+                  }}
+                >
+                  {applicationIntelligence.effect.company} ·{" "}
+                  {applicationIntelligence.effect.role}
+                </p>
+              )}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "minmax(0, 1.5fr) minmax(220px, 1fr)",
+              gap: "14px",
+            }}
+          >
+            <div
+              style={{
+                border: "1px solid #ecece7",
+                borderRadius: "14px",
+                padding: "18px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  marginBottom: "8px",
+                  color: "#777770",
+                }}
+              >
+                LATEST SIGNAL
+              </div>
+
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  marginBottom: "6px",
+                }}
+              >
+                {applicationIntelligence.effect.status}
+              </div>
+
+              <div
+                style={{
+                  fontSize: "16px",
+                  fontWeight: 650,
+                  marginBottom: "6px",
+                }}
+              >
+                {applicationIntelligence.effect.headline}
+              </div>
+
+              <div
+                style={{
+                  fontSize: "14px",
+                  lineHeight: 1.55,
+                  color: "#666660",
+                }}
+              >
+                {applicationIntelligence.effect.summary}
+              </div>
+
+              {applicationIntelligence.effect.progression && (
+                <div
+                  style={{
+                    marginTop: "14px",
+                    fontSize: "14px",
+                    fontWeight: 650,
+                  }}
+                >
+                  {applicationIntelligence.effect.progression.previousStage}
+                  {" → "}
+                  {applicationIntelligence.effect.progression.newStage}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                border: "1px solid #ecece7",
+                borderRadius: "14px",
+                padding: "18px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  marginBottom: "8px",
+                  color: "#777770",
+                }}
+              >
+                HISTORICAL MEMORY
+              </div>
+
+              <div
+                style={{
+                  fontSize: "22px",
+                  fontWeight: 700,
+                  marginBottom: "4px",
+                }}
+              >
+                {applicationIntelligence.memory.instances} observed
+              </div>
+
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#777770",
+                  marginBottom: "14px",
+                }}
+              >
+                {applicationIntelligence.memory.confidence} confidence
+              </div>
+
+              <div
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                }}
+              >
+                {applicationIntelligence.memory.recommendation}
+              </div>
+
+              <div
+                style={{
+                  marginTop: "6px",
+                  fontSize: "13px",
+                  lineHeight: 1.5,
+                  color: "#777770",
+                }}
+              >
+                {applicationIntelligence.memory.recommendation === "HOLD"
+                  ? "Not enough history to establish a pattern."
+                  : "Historical evidence is accumulating for this action pattern."}
+              </div>
+            </div>
           </div>
         </section>
       )}
