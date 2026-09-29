@@ -2092,3 +2092,356 @@ test("action explanations cap signals and remove duplicates", () => {
     assert.ok(action.explanation.decision.length > 0);
   }
 });
+
+test("decision trace records the action base priority", () => {
+  const actions = getActions(
+    actionInput(),
+    "INTERVIEWING",
+    6,
+    null,
+    "NEUTRAL",
+    "INTERVIEWING",
+    pipelineComposition({
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  const action = actions.find(
+    (item) => item.title === "Advance an active interview",
+  );
+
+  assert.ok(action);
+  assert.ok(action.decisionTrace);
+  assert.equal(action.decisionTrace.basePriority, 22);
+});
+
+test("decision trace records every scoring adjustment", () => {
+  const actions = getActions(
+    actionInput(),
+    "INTERVIEWING",
+    6,
+    null,
+    "NEUTRAL",
+    "INTERVIEWING",
+    pipelineComposition({
+      activeInterviews: 1,
+    }),
+  );
+
+  const action = actions.find(
+    (item) => item.title === "Advance an active interview",
+  );
+
+  assert.ok(action);
+  assert.ok(action.decisionTrace);
+
+  const labels = action.decisionTrace.adjustments.map(
+    (adjustment) => adjustment.label,
+  );
+
+  assert.ok(labels.includes("Evidence"));
+  assert.ok(labels.includes("INTERVIEWING state"));
+  assert.ok(labels.includes("Active interview path"));
+  assert.ok(labels.includes("Active interview action match"));
+});
+
+test("decision trace final score equals base priority plus adjustments", () => {
+  const actions = getActions(
+    actionInput(),
+    "INTERVIEWING",
+    6,
+    null,
+    "NEUTRAL",
+    "INTERVIEWING",
+    pipelineComposition({
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  for (const action of actions) {
+    assert.ok(action.decisionTrace);
+
+    const adjustmentTotal =
+      action.decisionTrace.adjustments.reduce(
+        (total, adjustment) => total + adjustment.delta,
+        0,
+      );
+
+    assert.equal(
+      action.decisionTrace.basePriority + adjustmentTotal,
+      action.decisionTrace.finalScore,
+    );
+  }
+});
+
+test("decision trace records selected actions as SELECTED", () => {
+  const actions = getActions(
+    actionInput(),
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "APPLICATION_HEAVY",
+    pipelineComposition({
+      activeApplications: 4,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  for (const action of actions) {
+    assert.ok(action.decisionTrace);
+    assert.equal(
+      action.decisionTrace.selection,
+      "SELECTED",
+    );
+    assert.ok(
+      action.decisionTrace.selectionReason.length > 0,
+    );
+  }
+});
+
+test("critical runway trace records the financial constraint", () => {
+  const actions = getActions(
+    actionInput(),
+    "INTERVIEWING",
+    1,
+    null,
+    "NEUTRAL",
+    "INTERVIEWING",
+    pipelineComposition({
+      activeInterviews: 2,
+    }),
+  );
+
+  const runwayAction = actions.find(
+    (item) => item.href === "/runway",
+  );
+
+  assert.ok(runwayAction);
+  assert.ok(runwayAction.decisionTrace);
+
+  assert.ok(
+    runwayAction.decisionTrace.adjustments.some(
+      (adjustment) =>
+        adjustment.label === "Critical runway" &&
+        adjustment.delta === 30,
+    ),
+  );
+
+  assert.match(
+    runwayAction.decisionTrace.selectionReason,
+    /critical-runway constraint/i,
+  );
+});
+
+test("category-diversity selection is recorded in the decision trace", () => {
+  const actions = getActions(
+    actionInput(),
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "APPLICATION_HEAVY",
+    pipelineComposition({
+      activeApplications: 4,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  const diversitySelected = actions.find(
+    (item) =>
+      item.decisionTrace?.selectionReason ===
+      "Selected during category-diversity pass",
+  );
+
+  assert.ok(diversitySelected);
+});
+
+test("ranked fill selection is recorded when categories run out", () => {
+  const actions = getActions(
+    actionInput(),
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "APPLICATION_HEAVY",
+    pipelineComposition({
+      activeApplications: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  const fillSelected = actions.find(
+    (item) =>
+      item.decisionTrace?.selectionReason ===
+      "Selected during ranked fill pass",
+  );
+
+  assert.ok(fillSelected);
+});
+
+test("decision trace captures negative learning adjustments", () => {
+  const input = actionInput({
+    applicationActionEvents: [
+      {
+        applicationId: "app-1",
+        company: "Test Company",
+        role: "Marketing Lead",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-01T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-2",
+        company: "Test Company",
+        role: "Marketing Lead",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-02T10:00:00.000Z",
+      },
+      {
+        applicationId: "app-3",
+        company: "Test Company",
+        role: "Marketing Lead",
+        action: "Follow Up with Recruiter",
+        completedAt: "2026-09-03T10:00:00.000Z",
+      },
+    ],
+    progressionEvents: [
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-01T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-1",
+          company: "Test Company",
+          role: "Marketing Lead",
+          previousStage: "Interview",
+          newStage: "Rejected",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-02T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-2",
+          company: "Test Company",
+          role: "Marketing Lead",
+          previousStage: "Interview",
+          newStage: "Rejected",
+        },
+      },
+      {
+        eventType: "application_progression",
+        entityType: "application",
+        occurredAt: "2026-09-03T12:00:00.000Z",
+        metadata: {
+          applicationId: "app-3",
+          company: "Test Company",
+          role: "Marketing Lead",
+          previousStage: "Interview",
+          newStage: "Rejected",
+        },
+      },
+    ],
+    applications: [
+      {
+        stage: "applied",
+        company: "New Company",
+        role: "Marketing Lead",
+      },
+    ],
+  });
+
+  const actions = getActions(
+    input,
+    "SEARCHING",
+    6,
+    null,
+    "NEUTRAL",
+    "APPLICATION_HEAVY",
+    pipelineComposition({
+      activeApplications: 1,
+    }),
+  );
+
+  const action = actions.find(
+    (item) =>
+      item.title.toLowerCase().includes("follow up") &&
+      item.href === "/job-search",
+  );
+
+  if (action) {
+    assert.ok(action.decisionTrace);
+    assert.ok(
+      action.decisionTrace.adjustments.some(
+        (adjustment) =>
+          adjustment.label === "Learned action: RETIRE" &&
+          adjustment.delta === -25,
+      ),
+    );
+  }
+});
+
+test("decision trace does not alter recommendation count", () => {
+  const actions = getActions(
+    actionInput(),
+    "FINAL_ROUND",
+    6,
+    null,
+    "NEUTRAL",
+    "FINAL_ROUND",
+    pipelineComposition({
+      finalRounds: 2,
+      activeInterviews: 2,
+      activeApplications: 4,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+  assert.ok(actions.length <= 5);
+
+  for (const action of actions) {
+    assert.ok(action.decisionTrace);
+    assert.equal(
+      action.decisionTrace.selection,
+      "SELECTED",
+    );
+  }
+});
+
+test("decision trace preserves non-zero final scores and action identity", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  for (const action of actions) {
+    assert.ok(action.title);
+    assert.ok(action.href);
+    assert.ok(action.decisionTrace);
+    assert.equal(
+      typeof action.decisionTrace.finalScore,
+      "number",
+    );
+    assert.ok(
+      Number.isFinite(action.decisionTrace.finalScore),
+    );
+  }
+});

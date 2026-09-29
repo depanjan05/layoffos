@@ -20,6 +20,17 @@ export type RecoveryActionExplanation = {
   decision: string;
 };
 
+export type RecoveryActionDecisionTrace = {
+  basePriority: number;
+  adjustments: Array<{
+    label: string;
+    delta: number;
+  }>;
+  finalScore: number;
+  selection: "SELECTED" | "NOT_SELECTED";
+  selectionReason: string;
+};
+
 export type RecoveryAction = {
   title: string;
   reason: string;
@@ -27,6 +38,7 @@ export type RecoveryAction = {
   priority: RecoveryPriority;
   evidence?: string;
   explanation?: RecoveryActionExplanation;
+  decisionTrace?: RecoveryActionDecisionTrace;
 };
 
 export type RecoverySituation = {
@@ -2443,12 +2455,18 @@ export function getActions(
         state,
         runwayMonths
       );
-
       const title = normalize(action.title);
-      let score = priorityBase[action.priority];
+      const basePriority = priorityBase[action.priority];
+      let score = basePriority;
+      const adjustments: Array<{ label: string; delta: number }> = [];
+
+      const addScore = (label: string, delta: number) => {
+        score += delta;
+        adjustments.push({ label, delta });
+      };
 
       if (evidence) {
-        score += 5;
+        addScore("Evidence", 5);
       }
 
       // State relevance.
@@ -2456,35 +2474,31 @@ export function getActions(
         state === "JUST_LAID_OFF" &&
         action.href === "/first-72-hours"
       ) {
-        score += 35;
+        addScore("JUST_LAID_OFF state", 35);
       }
-
       if (
         state === "INTERVIEWING" &&
         action.href === "/interviews"
       ) {
-        score += 18;
+        addScore("INTERVIEWING state", 18);
       }
-
       if (
         state === "FINAL_ROUND" &&
         action.href === "/interviews"
       ) {
-        score += 25;
+        addScore("FINAL_ROUND state", 25);
       }
-
       if (
         state === "OFFER" &&
         action.href === "/interviews"
       ) {
-        score += 20;
+        addScore("OFFER state", 20);
       }
-
       if (
         state === "RECOVERED" &&
         action.href === "/dashboard"
       ) {
-        score += 15;
+        addScore("RECOVERED state", 15);
       }
 
       // Financial urgency.
@@ -2493,32 +2507,30 @@ export function getActions(
           runwayMonths < 2 &&
           action.href === "/runway"
         ) {
-          score += 30;
+          addScore("Critical runway", 30);
         } else if (
           runwayMonths < 4 &&
           action.href === "/runway"
         ) {
-          score += 20;
+          addScore("Low runway", 20);
         } else if (
           runwayMonths < 8 &&
           action.href === "/runway"
         ) {
-          score += 8;
+          addScore("Limited runway", 8);
         }
       }
 
       // Accepted offer.
       if (pipelineComposition.acceptedOffers > 0) {
         if (title.includes("confirm your accepted offer")) {
-          score += 35;
+          addScore("Accepted offer confirmation", 35);
         }
-
         if (title.includes("compensation and decision dates")) {
-          score += 18;
+          addScore("Accepted offer decision dates", 18);
         }
-
         if (title.includes("backup opportunity")) {
-          score += 10;
+          addScore("Accepted offer backup opportunity", 10);
         }
       }
 
@@ -2528,40 +2540,36 @@ export function getActions(
         pipelineComposition.acceptedOffers === 0
       ) {
         if (title.includes("review your offer pipeline")) {
-          score += 30;
+          addScore("Active offer pipeline", 30);
         }
-
         if (title.includes("compensation and decision dates")) {
-          score += 22;
+          addScore("Active offer decision dates", 22);
         }
-
         if (action.href === "/interviews") {
-          score += 10;
+          addScore("Active offer interview path", 10);
         }
       }
 
       // Final-round opportunities.
       if (pipelineComposition.finalRounds > 0) {
         if (action.href === "/interviews") {
-          score += 25;
+          addScore("Final-round interview path", 25);
         }
-
         if (title.includes("final-round")) {
-          score += 15;
+          addScore("Final-round action match", 15);
         }
       }
 
       // Active interviews.
       if (pipelineComposition.activeInterviews > 0) {
         if (action.href === "/interviews") {
-          score += 18;
+          addScore("Active interview path", 18);
         }
-
         if (
           title.includes("prepare for your next interview") ||
           title.includes("advance an active interview")
         ) {
-          score += 12;
+          addScore("Active interview action match", 12);
         }
       }
 
@@ -2573,11 +2581,10 @@ export function getActions(
         if (
           title.includes("convert applications into conversations")
         ) {
-          score += 22;
+          addScore("Application conversion action", 22);
         }
-
         if (action.href === "/job-search") {
-          score += 8;
+          addScore("Job-search path", 8);
         }
       }
 
@@ -2586,7 +2593,6 @@ export function getActions(
         input.networkContacts ?? []
       ).some((contact) => {
         const status = normalize(contact.status);
-
         return (
           status !== "inactive" &&
           status !== "closed" &&
@@ -2599,7 +2605,7 @@ export function getActions(
         hasNetworkFollowUp &&
         title.includes("follow up with an active network contact")
       ) {
-        score += 22;
+        addScore("Active network follow-up", 22);
       }
 
       // Recent progression.
@@ -2608,12 +2614,11 @@ export function getActions(
         recentProgression
       ) {
         const newStage = normalize(recentProgression.newStage);
-
         if (
           (newStage === "interview" || newStage === "final") &&
           action.href === "/interviews"
         ) {
-          score += 18;
+          addScore("Recent advancement to interview", 18);
         }
       }
 
@@ -2622,7 +2627,7 @@ export function getActions(
           title.includes("replacement opportunity") ||
           title.includes("new referral conversation")
         ) {
-          score += 20;
+          addScore("Setback replacement path", 20);
         }
       }
 
@@ -2631,7 +2636,7 @@ export function getActions(
           action.href === "/job-search" ||
           action.href === "/networking"
         ) {
-          score += 12;
+          addScore("Closed opportunity recovery path", 12);
         }
       }
 
@@ -2658,15 +2663,15 @@ export function getActions(
           if (
             applicationActionMemory.recommendation === "REPEAT"
           ) {
-            score += 14;
+            addScore("Learned action: REPEAT", 14);
           } else if (
             applicationActionMemory.recommendation === "MODIFY"
           ) {
-            score += 4;
+            addScore("Learned action: MODIFY", 4);
           } else if (
             applicationActionMemory.recommendation === "RETIRE"
           ) {
-            score -= 25;
+            addScore("Learned action: RETIRE", -25);
           }
         }
       }
@@ -2677,6 +2682,8 @@ export function getActions(
         score,
         index,
         category: getActionCategory(action),
+        basePriority,
+        adjustments,
       };
     });
 
@@ -2690,6 +2697,10 @@ export function getActions(
 
   const selectedActions: typeof sortedActions = [];
   const selectedCategories = new Set<string>();
+  const selectionReasons = new Map<
+    number,
+    string
+  >();
 
   // Critical financial runway is a hard constraint:
   // never allow an urgent interview/search context to completely
@@ -2702,6 +2713,10 @@ export function getActions(
     if (financialAction) {
       selectedActions.push(financialAction);
       selectedCategories.add(financialAction.category);
+      selectionReasons.set(
+        financialAction.index,
+        "Selected by critical-runway constraint"
+      );
     }
   }
 
@@ -2717,6 +2732,13 @@ export function getActions(
 
     selectedActions.push(item);
     selectedCategories.add(item.category);
+
+    if (!selectionReasons.has(item.index)) {
+      selectionReasons.set(
+        item.index,
+        "Selected during category-diversity pass"
+      );
+    }
   }
 
   // Second pass: fill remaining slots with the strongest
@@ -2735,6 +2757,13 @@ export function getActions(
     }
 
     selectedActions.push(item);
+
+    if (!selectionReasons.has(item.index)) {
+      selectionReasons.set(
+        item.index,
+        "Selected during ranked fill pass"
+      );
+    }
   }
 
   const finalActions = selectedActions
@@ -2746,7 +2775,7 @@ export function getActions(
         a.index - b.index
     )
     .slice(0, 5)
-    .map(({ action, evidence }) => ({
+    .map(({ action, evidence, basePriority, adjustments, score, index }) => ({
       ...action,
       evidence,
       explanation: getActionExplanation(
@@ -2758,9 +2787,18 @@ export function getActions(
         pipelineComposition,
         evidence
       ),
+      decisionTrace: {
+        basePriority,
+        adjustments,
+        finalScore: score,
+        selection: "SELECTED" as const,
+        selectionReason:
+          selectionReasons.get(index) ??
+          "Selected for recovery recommendation",
+      },
     }));
 
-return finalActions;
+  return finalActions;
 }
 
 function getPipelineComposition(
