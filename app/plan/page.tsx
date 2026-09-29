@@ -153,6 +153,20 @@ export default function PlanPage() {
   const [recovery, setRecovery] = useState(defaultRecovery);
   const [completed, setCompleted] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(false);
+  const [recoveryEngine, setRecoveryEngine] = useState<{
+    state: string;
+    situation: {
+      headline: string;
+      summary: string;
+      risk: string | null;
+    } | null;
+    bottleneck: {
+      headline: string;
+      summary: string;
+      focus: string;
+    } | null;
+    priorities: string[];
+  } | null>(null);
 
   function getWeekStart() {
     const date = new Date();
@@ -300,6 +314,33 @@ export default function PlanPage() {
 
   useEffect(() => {
     if (!hydrated) return;
+
+    async function loadRecoveryEngine() {
+      try {
+        const response = await fetch("/api/recovery-engine");
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        setRecoveryEngine({
+          state: data.state ?? "",
+          situation: data.situation ?? null,
+          bottleneck: data.bottleneck ?? null,
+          priorities: Array.isArray(data.priorities)
+            ? data.priorities
+            : [],
+        });
+      } catch (error) {
+        console.error("Could not load Recovery Engine:", error);
+      }
+    }
+
+    loadRecoveryEngine();
+  }, [hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
     localStorage.setItem(RECOVERY_KEY, JSON.stringify(recovery));
     localStorage.setItem(PLAN_KEY, JSON.stringify(completed));
   }, [recovery, completed, hydrated]);
@@ -404,8 +445,243 @@ export default function PlanPage() {
       };
     }
 
+    // Recovery Engine state overrides profile-only assumptions when
+    // stronger pipeline evidence is available.
+    const engineState = recoveryEngine?.state;
+
+    if (engineState === "JUST_LAID_OFF") {
+      tasks[2] = {
+        id: "plan-3",
+        day: "TUE",
+        category: "STABILIZATION",
+        title: "Complete your first recovery actions",
+        description:
+          "Finish the immediate financial, administrative, and job-search actions that reduce uncertainty after the layoff.",
+        href: "/first-72-hours",
+      };
+
+      tasks[5] = {
+        id: "plan-6",
+        day: "WED",
+        category: "DIRECTION",
+        title: "Define your immediate search direction",
+        description:
+          "Choose the roles, work type, and search direction that should guide your next conversations.",
+        href: "/job-search",
+      };
+    }
+
+    if (engineState === "STABILIZING") {
+      tasks[2] = {
+        id: "plan-3",
+        day: "TUE",
+        category: "RUNWAY",
+        title: "Review your financial runway",
+        description:
+          "Know how much time you have and what income or spending decisions need attention now.",
+        href: "/runway",
+      };
+
+      tasks[5] = {
+        id: "plan-6",
+        day: "WED",
+        category: "DIRECTION",
+        title: "Choose your priority roles",
+        description:
+          "Focus the search on the roles where your experience and current situation give you the strongest path forward.",
+        href: "/job-search",
+      };
+    }
+
+    if (engineState === "SEARCHING") {
+      tasks[2] = {
+        id: "plan-3",
+        day: "TUE",
+        category: "PIPELINE",
+        title: "Build targeted application opportunities",
+        description:
+          "Add focused opportunities that match your target roles instead of applying broadly without a clear fit.",
+        href: "/job-search",
+      };
+
+      tasks[5] = {
+        id: "plan-6",
+        day: "WED",
+        category: "NETWORKING",
+        title: "Create referral conversations",
+        description:
+          "Turn your active search into conversations with people who can provide context, referrals, or introductions.",
+        href: "/networking",
+      };
+
+      tasks[6] = {
+        id: "plan-7",
+        day: "THU",
+        category: "FOLLOW-UP",
+        title: "Convert pending applications into conversations",
+        description:
+          "Review active applications and take the next useful follow-up action where one is available.",
+        href: "/job-search",
+      };
+    }
+
+    if (engineState === "INTERVIEWING") {
+      tasks[2] = {
+        id: "plan-3",
+        day: "TUE",
+        category: "INTERVIEWS",
+        title: "Prepare your active interviews",
+        description:
+          "Review every active interview, identify the next action, and prepare specifically for the conversations ahead.",
+        href: "/interviews",
+      };
+
+      tasks[5] = {
+        id: "plan-6",
+        day: "WED",
+        category: "INTERVIEWS",
+        title: "Advance an active interview",
+        description:
+          "Take the next concrete action on an active interview rather than adding more low-priority applications.",
+        href: "/interviews",
+      };
+
+      tasks[8] = {
+        id: "plan-9",
+        day: "FRI",
+        category: "FOLLOW-UP",
+        title: "Close every interview loop",
+        description:
+          "Send follow-ups, record feedback, and make sure no active interview is sitting without a next action.",
+        href: "/interviews",
+      };
+    }
+
+    if (engineState === "FINAL_ROUND") {
+      tasks[2] = {
+        id: "plan-3",
+        day: "TUE",
+        category: "FINAL ROUND",
+        title: "Prepare for your final round",
+        description:
+          "Build a focused preparation plan around the role, decision criteria, stakeholders, and likely final-round questions.",
+        href: "/interviews",
+      };
+
+      tasks[5] = {
+        id: "plan-6",
+        day: "WED",
+        category: "FINAL ROUND",
+        title: "Strengthen your final-round position",
+        description:
+          "Review what has happened so far, identify remaining gaps, and prepare the evidence that supports your candidacy.",
+        href: "/interviews",
+      };
+
+      tasks[8] = {
+        id: "plan-9",
+        day: "FRI",
+        category: "DECISION",
+        title: "Prepare for the decision",
+        description:
+          "Review compensation, timing, follow-up, and the information you need before an offer decision arrives.",
+        href: "/interviews",
+      };
+    }
+
+    if (engineState === "OFFER") {
+      tasks[2] = {
+        id: "plan-3",
+        day: "TUE",
+        category: "OFFER",
+        title: "Review your offer details",
+        description:
+          "Review compensation, start date, decision dates, role scope, and any unresolved terms before making the next decision.",
+        href: "/interviews",
+      };
+
+      tasks[5] = {
+        id: "plan-6",
+        day: "WED",
+        category: "TRANSITION",
+        title: "Complete your offer transition details",
+        description:
+          "Record the accepted offer, expected start information, and remaining transition requirements so your recovery state stays accurate.",
+        href: "/interviews",
+      };
+
+      tasks[8] = {
+        id: "plan-9",
+        day: "FRI",
+        category: "BACKUP",
+        title: "Keep one backup opportunity warm",
+        description:
+          "Maintain one relevant alternative opportunity until the accepted offer has fully cleared its remaining transition risk.",
+        href: "/job-search",
+      };
+    }
+
+    if (engineState === "RECOVERED") {
+      tasks[2] = {
+        id: "plan-3",
+        day: "TUE",
+        category: "TRANSITION",
+        title: "Complete your recovery closeout",
+        description:
+          "Make sure your employment status, offer details, and recovery records accurately reflect your new situation.",
+        href: "/dashboard",
+      };
+
+      tasks[5] = {
+        id: "plan-6",
+        day: "WED",
+        category: "SYSTEM",
+        title: "Archive your active search",
+        description:
+          "Close stale applications, update active opportunities, and preserve the information you may want later.",
+        href: "/job-search",
+      };
+
+      tasks[8] = {
+        id: "plan-9",
+        day: "FRI",
+        category: "REVIEW",
+        title: "Review the recovery journey",
+        description:
+          "Review what changed, what worked, and what you want to carry into your next employment chapter.",
+        href: "/dashboard",
+      };
+    }
+
     return tasks;
-  }, [recovery]);
+  }, [recovery, recoveryEngine]);
+
+  const weeklyRecoveryFocus = useMemo(() => {
+    if (!recoveryEngine) {
+      return null;
+    }
+
+    const focus =
+      recoveryEngine.bottleneck?.focus ||
+      recoveryEngine.bottleneck?.headline ||
+      recoveryEngine.situation?.headline ||
+      "";
+
+    const summary =
+      recoveryEngine.bottleneck?.summary ||
+      recoveryEngine.situation?.summary ||
+      "";
+
+    if (!focus && !summary) {
+      return null;
+    }
+
+    return {
+      focus,
+      summary,
+      state: recoveryEngine.state,
+    };
+  }, [recoveryEngine]);
 
   const completion = Math.round(
     (completed.filter((id) =>
@@ -591,8 +867,12 @@ export default function PlanPage() {
 
         <section className="mb-10 grid gap-4 md:grid-cols-3">
           <ContextCard
-            label="Current stage"
-            value={recovery.stage || "Not set"}
+            label="Recovery state"
+            value={
+              recoveryEngine?.state
+                ? recoveryEngine.state.replaceAll("_", " ")
+                : recovery.stage || "Not set"
+            }
           />
 
           <ContextCard
@@ -602,9 +882,49 @@ export default function PlanPage() {
 
           <ContextCard
             label="Main focus"
-            value={recovery.focus || "Not set"}
+            value={
+              recoveryEngine?.state === "OFFER"
+                ? "Offer transition"
+                : recoveryEngine?.state === "FINAL_ROUND"
+                  ? "Final-round execution"
+                  : recoveryEngine?.state === "INTERVIEWING"
+                    ? "Interview execution"
+                    : recoveryEngine?.state === "SEARCHING"
+                      ? "Pipeline building"
+                      : recoveryEngine?.state === "STABILIZING"
+                        ? "Stabilization"
+                        : recoveryEngine?.state === "JUST_LAID_OFF"
+                          ? "Immediate recovery"
+                          : recoveryEngine?.state === "RECOVERED"
+                            ? "Recovery closeout"
+                            : recovery.focus || "Not set"
+            }
           />
         </section>
+
+        {weeklyRecoveryFocus && (
+          <section className="mb-10 rounded-3xl border border-[#deded8] bg-[#111] p-7 text-white md:p-9">
+            <div className="flex flex-col justify-between gap-6 md:flex-row md:items-start">
+              <div className="max-w-3xl">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#999]">
+                  This week's recovery focus
+                </p>
+                <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+                  {weeklyRecoveryFocus.focus}
+                </h2>
+                <p className="mt-4 leading-7 text-[#b8b8b8]">
+                  {weeklyRecoveryFocus.summary}
+                </p>
+              </div>
+
+              {weeklyRecoveryFocus.state && (
+                <span className="shrink-0 rounded-full border border-[#444] px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#d0d0d0]">
+                  {weeklyRecoveryFocus.state.replaceAll("_", " ")}
+                </span>
+              )}
+            </div>
+          </section>
+        )}
 
         <section className="space-y-5">
           {days.map((day) => {
