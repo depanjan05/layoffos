@@ -3174,17 +3174,36 @@ function getRecoveryOutcome(
   }
 
   if (signal === "SETBACK") {
+    const newStage = normalize(progression.newStage);
+    const opportunityType =
+      progression.type === "interview" ? "interview" : "application";
+
+    if (newStage === "rejected") {
+      return {
+        status: "NEGATIVE",
+        headline: `${progression.company} produced a negative progression signal.`,
+        summary:
+          `${opportunityType === "interview" ? "The interview" : "The application"} moved from ${progression.previousStage} to Rejected.`,
+        evidence: [
+          `${progression.previousStage} → Rejected`,
+          `${opportunityType === "interview" ? "Interview" : "Application"} opportunity lost`,
+        ],
+        recommendation:
+          "Replace the lost opportunity and use the setback to recalibrate where the active pipeline needs more depth.",
+      };
+    }
+
     return {
       status: "NEGATIVE",
-      headline: `${progression.company} produced a negative progression signal.`,
+      headline: `${progression.company} produced a backward progression signal.`,
       summary:
-        `${progression.type === "interview" ? "The interview" : "The application"} moved from ${progression.previousStage} to Rejected.`,
+        `${opportunityType === "interview" ? "The interview" : "The application"} moved backward from ${progression.previousStage} to ${progression.newStage}.`,
       evidence: [
-        `${progression.previousStage} → Rejected`,
-        `${progression.type === "interview" ? "Interview" : "Application"} opportunity lost`,
+        `${progression.previousStage} → ${progression.newStage}`,
+        `${opportunityType === "interview" ? "Interview" : "Application"} stage regressed`,
       ],
       recommendation:
-        "Replace the lost opportunity and use the setback to recalibrate where the active pipeline needs more depth.",
+        "Reassess the active opportunity and increase pipeline depth while addressing the cause of the backward movement.",
     };
   }
 
