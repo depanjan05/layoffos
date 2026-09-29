@@ -33,6 +33,25 @@ type RecoveryEngineResult = {
     recentClosures: number;
     signals: string[];
   };
+  outcome: {
+    status: "POSITIVE" | "MIXED" | "NEGATIVE" | "NONE";
+    headline: string;
+    summary: string;
+    evidence: string[];
+    recommendation: string;
+  };
+  recalibration: {
+    needed: boolean;
+    headline: string;
+    summary: string;
+    reason: string;
+    nextFocus:
+      | "FINANCIAL"
+      | "APPLICATIONS"
+      | "NETWORKING"
+      | "INTERVIEWS"
+      | "DIRECTION";
+  };
   situation: {
     headline: string;
     summary: string;
@@ -1267,6 +1286,93 @@ export default function DashboardPage() {
                           </ul>
                         </div>
                       )}
+                    </div>
+                  </div>
+
+                  <div className="mt-5 border-t border-[#deded8] pt-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                        Recovery outcome
+                      </p>
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
+                        {recoveryEngine.outcome.status}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                      {recoveryEngine.outcome.headline}
+                    </p>
+
+                    <p className="mt-2 text-sm leading-5 text-[#66665f]">
+                      {recoveryEngine.outcome.summary}
+                    </p>
+
+                    {recoveryEngine.outcome.evidence.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Outcome evidence
+                        </p>
+
+                        <ul className="mt-2 space-y-1">
+                          {recoveryEngine.outcome.evidence.map((item) => (
+                            <li
+                              key={item}
+                              className="text-xs leading-5 text-[#66665f]"
+                            >
+                              • {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <p className="mt-4 text-xs font-medium leading-5 text-[#66665f]">
+                      {recoveryEngine.outcome.recommendation}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 border-t border-[#deded8] pt-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                        Recalibration
+                      </p>
+
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
+                        {recoveryEngine.recalibration.needed
+                          ? "Needed"
+                          : "Not needed"}
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                      {recoveryEngine.recalibration.headline}
+                    </p>
+
+                    <p className="mt-2 text-sm leading-5 text-[#66665f]">
+                      {recoveryEngine.recalibration.summary}
+                    </p>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Reason
+                        </p>
+                        <p className="mt-1 text-sm leading-5 text-[#33332f]">
+                          {recoveryEngine.recalibration.reason}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Next focus
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
+                          {recoveryEngine.recalibration.nextFocus.replaceAll(
+                            "_",
+                            " "
+                          )}
+                        </p>
+                      </div>
                     </div>
                   </div>
 

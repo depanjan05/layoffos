@@ -72,6 +72,22 @@ export type RecoveryMomentum = {
   signals: string[];
 };
 
+export type RecoveryOutcome = {
+  status: "POSITIVE" | "MIXED" | "NEGATIVE" | "NONE";
+  headline: string;
+  summary: string;
+  evidence: string[];
+  recommendation: string;
+};
+
+export type RecoveryRecalibration = {
+  needed: boolean;
+  headline: string;
+  summary: string;
+  reason: string;
+  nextFocus: RecoveryPriority;
+};
+
 export type RecoveryTransition = {
   nextState: RecoveryState;
   label: string;
@@ -175,6 +191,8 @@ export type RecoveryEngineResult = {
   runwayMonths: number | null;
   pipelineHealth: PipelineHealth;
   momentum: RecoveryMomentum;
+  outcome: RecoveryOutcome;
+  recalibration: RecoveryRecalibration;
   priorities: RecoveryPriority[];
   actions: RecoveryAction[];
   transition: RecoveryTransition;
@@ -2412,6 +2430,151 @@ function getRecoveryMomentum(
   };
 }
 
+function getRecoveryOutcome(
+  progression: RecentProgression | null
+): RecoveryOutcome {
+  if (!progression) {
+    return {
+      status: "NONE",
+      headline: "No recent recovery outcome detected.",
+      summary:
+        "There is not enough recent progression evidence to classify an outcome.",
+      evidence: [],
+      recommendation:
+        "Keep the active recovery pipeline moving and generate the next measurable progression signal.",
+    };
+  }
+
+  const signal = getProgressionSignal(progression);
+
+  if (signal === "ADVANCING") {
+    return {
+      status: "POSITIVE",
+      headline: `${progression.company} produced a positive progression signal.`,
+      summary:
+        `${progression.type === "interview" ? "The interview" : "The application"} moved from ${progression.previousStage} to ${progression.newStage}.`,
+      evidence: [
+        `${progression.previousStage} → ${progression.newStage}`,
+        `${progression.type === "interview" ? "Interview" : "Application"} progression detected`,
+      ],
+      recommendation:
+        "Preserve the current momentum and increase preparation or follow-up appropriate to the new stage.",
+    };
+  }
+
+  if (signal === "SETBACK") {
+    return {
+      status: "NEGATIVE",
+      headline: `${progression.company} produced a negative progression signal.`,
+      summary:
+        `${progression.type === "interview" ? "The interview" : "The application"} moved from ${progression.previousStage} to Rejected.`,
+      evidence: [
+        `${progression.previousStage} → Rejected`,
+        `${progression.type === "interview" ? "Interview" : "Application"} opportunity lost`,
+      ],
+      recommendation:
+        "Replace the lost opportunity and use the setback to recalibrate where the active pipeline needs more depth.",
+    };
+  }
+
+  if (signal === "CLOSED") {
+    return {
+      status: "NEGATIVE",
+      headline: `${progression.company} produced a closed opportunity.`,
+      summary:
+        `${progression.type === "interview" ? "The interview" : "The application"} moved from ${progression.previousStage} to Withdrawn.`,
+      evidence: [
+        `${progression.previousStage} → Withdrawn`,
+        `${progression.type === "interview" ? "Interview" : "Application"} opportunity closed`,
+      ],
+      recommendation:
+        "Stop spending recovery attention on the closed path and redirect effort toward active opportunities.",
+    };
+  }
+
+  return {
+    status: "MIXED",
+    headline: `${progression.company} produced a neutral progression signal.`,
+    summary:
+      `${progression.type === "interview" ? "The interview" : "The application"} changed stage, but the available evidence does not establish forward or backward movement.`,
+    evidence: [
+      `${progression.previousStage} → ${progression.newStage}`,
+      "Stage change detected without a directional progression signal",
+    ],
+    recommendation:
+      "Continue monitoring the opportunity until a clearer progression, setback, or closure signal appears.",
+  };
+}
+
+function getRecoveryRecalibration(
+  outcome: RecoveryOutcome,
+  pipelineComposition: PipelineComposition
+): RecoveryRecalibration {
+  if (outcome.status === "NEGATIVE") {
+    return {
+      needed: true,
+      headline: "Recovery strategy needs recalibration.",
+      summary:
+        "A recent opportunity was lost or closed, so the next actions should replace that capacity rather than continue as if the pipeline were unchanged.",
+      reason: outcome.headline,
+      nextFocus:
+        pipelineComposition.activeApplications < 3
+          ? "APPLICATIONS"
+          : pipelineComposition.activeInterviews === 0
+            ? "NETWORKING"
+            : "INTERVIEWS",
+    };
+  }
+
+  if (outcome.status === "POSITIVE") {
+    return {
+      needed: false,
+      headline: "Recovery strategy is responding to positive movement.",
+      summary:
+        "Recent progression provides evidence that the current recovery direction is producing movement.",
+      reason: outcome.headline,
+      nextFocus:
+        pipelineComposition.finalRounds > 0 ||
+        pipelineComposition.offers > 0 ||
+        pipelineComposition.acceptedOffers > 0
+          ? "INTERVIEWS"
+          : pipelineComposition.activeInterviews > 0
+            ? "INTERVIEWS"
+            : "APPLICATIONS",
+    };
+  }
+
+  if (outcome.status === "MIXED") {
+    return {
+      needed: false,
+      headline: "Recovery strategy does not need recalibration yet.",
+      summary:
+        "A recent stage change was detected, but the available evidence is not strong enough to justify changing the recovery direction.",
+      reason: outcome.headline,
+      nextFocus:
+        pipelineComposition.activeInterviews > 0
+          ? "INTERVIEWS"
+          : pipelineComposition.activeApplications > 0
+            ? "APPLICATIONS"
+            : "NETWORKING",
+    };
+  }
+
+  return {
+    needed: false,
+    headline: "No recalibration signal is available yet.",
+    summary:
+      "There is no recent progression outcome to justify changing the current recovery strategy.",
+    reason: "No recent progression event was detected.",
+    nextFocus:
+      pipelineComposition.activeApplications > 0
+        ? "APPLICATIONS"
+        : pipelineComposition.activeInterviews > 0
+          ? "INTERVIEWS"
+          : "NETWORKING",
+  };
+}
+
 function getRecoveryChange(
   progression: RecentProgression | null
 ): RecoveryChange | null {
@@ -2550,6 +2713,13 @@ export function calculateRecovery(
     pipelineComposition
   );
 
+  const outcome = getRecoveryOutcome(recentProgression);
+
+  const recalibration = getRecoveryRecalibration(
+    outcome,
+    pipelineComposition
+  );
+
   const readiness = getRecoveryReadiness(
     state,
     pipelineComposition
@@ -2562,6 +2732,8 @@ export function calculateRecovery(
     runwayMonths,
     pipelineHealth,
     momentum,
+    outcome,
+    recalibration,
     priorities: getPriorities(
       input,
       state,
