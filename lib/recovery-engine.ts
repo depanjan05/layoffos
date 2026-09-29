@@ -894,7 +894,7 @@ function calculateRunway(input: RecoveryEngineInput) {
   return Math.max(0, availableCash / monthlyBurn);
 }
 
-function getState(input: RecoveryEngineInput): RecoveryState {
+export function getState(input: RecoveryEngineInput): RecoveryState {
   const employmentStatus = normalize(input.employmentStatus);
   const careerStage = normalize(input.careerStage);
   const recoveryTiming = normalize(input.recoveryTiming);
@@ -2691,7 +2691,7 @@ function getRecoveryBottleneck(
   };
 }
 
-function getPipelineHealth(
+export function getPipelineHealth(
   pipelineComposition: PipelineComposition
 ): PipelineHealth {
   const {

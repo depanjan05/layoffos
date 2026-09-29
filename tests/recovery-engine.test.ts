@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  getPipelineHealth,
   getProgressionSignal,
   getRecoveryOutcome,
+  getState,
   getWeeklyPlanTaskEffect,
   type RecentProgression,
   type RecoveryEngineInput,
@@ -310,5 +312,345 @@ test("non-pipeline weekly plan destinations do not fabricate outcomes", () => {
   );
 
   assert.equal(result.status, "UNKNOWN");
+  assert.equal(result.progression, null);
+});
+
+function stateInput(
+  overrides: Partial<RecoveryEngineInput> = {},
+): RecoveryEngineInput {
+  return {
+    recoveryTiming: "last month",
+    employmentStatus: "unemployed",
+    careerStage: "none",
+    applications: [],
+    interviews: [],
+    ...overrides,
+  };
+}
+
+function pipeline(
+  overrides: Partial<{
+    totalApplications: number;
+    activeApplications: number;
+    activeInterviews: number;
+    finalRounds: number;
+    offers: number;
+    applicationOffers: number;
+    interviewOffers: number;
+    acceptedOffers: number;
+    activeNetworkContacts: number;
+  }> = {},
+) {
+  return {
+    totalApplications: 0,
+    activeApplications: 0,
+    activeInterviews: 0,
+    finalRounds: 0,
+    offers: 0,
+    applicationOffers: 0,
+    interviewOffers: 0,
+    acceptedOffers: 0,
+    activeNetworkContacts: 0,
+    ...overrides,
+  };
+}
+
+test("state machine classifies recovered employment first", () => {
+  assert.equal(
+    getState(
+      stateInput({
+        employmentStatus: "employed",
+        careerStage: "offer",
+        applications: [{ stage: "applied" }],
+        interviews: [{ stage: "final" }],
+      }),
+    ),
+    "RECOVERED",
+  );
+
+  assert.equal(
+    getState(
+      stateInput({
+        employmentStatus: "unemployed",
+        careerStage: "recovered",
+      }),
+    ),
+    "RECOVERED",
+  );
+});
+
+test("state machine gives offer precedence over final and interview stages", () => {
+  assert.equal(
+    getState(
+      stateInput({
+        careerStage: "offer",
+        interviews: [{ stage: "final" }],
+      }),
+    ),
+    "OFFER",
+  );
+
+  assert.equal(
+    getState(
+      stateInput({
+        interviews: [{ stage: "accepted" }],
+      }),
+    ),
+    "OFFER",
+  );
+});
+
+test("state machine gives final round precedence over ordinary interviews", () => {
+  assert.equal(
+    getState(
+      stateInput({
+        interviews: [
+          { stage: "interview" },
+          { stage: "final" },
+        ],
+      }),
+    ),
+    "FINAL_ROUND",
+  );
+
+  assert.equal(
+    getState(
+      stateInput({
+        careerStage: "finals",
+      }),
+    ),
+    "FINAL_ROUND",
+  );
+});
+
+test("state machine classifies active interviews as INTERVIEWING", () => {
+  assert.equal(
+    getState(
+      stateInput({
+        interviews: [{ stage: "interview" }],
+      }),
+    ),
+    "INTERVIEWING",
+  );
+
+  assert.equal(
+    getState(
+      stateInput({
+        careerStage: "interviews",
+      }),
+    ),
+    "INTERVIEWING",
+  );
+});
+
+test("state machine classifies active applications as SEARCHING", () => {
+  assert.equal(
+    getState(
+      stateInput({
+        applications: [{ stage: "applied" }],
+      }),
+    ),
+    "SEARCHING",
+  );
+
+  assert.equal(
+    getState(
+      stateInput({
+        careerStage: "applying",
+      }),
+    ),
+    "SEARCHING",
+  );
+});
+
+test("state machine classifies recent layoff timing as JUST_LAID_OFF", () => {
+  assert.equal(
+    getState(
+      stateInput({
+        recoveryTiming: "this week",
+      }),
+    ),
+    "JUST_LAID_OFF",
+  );
+
+  assert.equal(
+    getState(
+      stateInput({
+        recoveryTiming: "week",
+      }),
+    ),
+    "JUST_LAID_OFF",
+  );
+});
+
+test("state machine defaults to STABILIZING without active recovery signals", () => {
+  assert.equal(
+    getState(
+      stateInput({
+        recoveryTiming: "last month",
+      }),
+    ),
+    "STABILIZING",
+  );
+});
+
+test("rejected and withdrawn opportunities do not create active pipeline state", () => {
+  assert.equal(
+    getState(
+      stateInput({
+        applications: [
+          { stage: "rejected" },
+          { stage: "withdrawn" },
+        ],
+      }),
+    ),
+    "STABILIZING",
+  );
+
+  assert.equal(
+    getState(
+      stateInput({
+        interviews: [
+          { stage: "rejected" },
+          { stage: "withdrawn" },
+        ],
+      }),
+    ),
+    "STABILIZING",
+  );
+});
+
+test("pipeline with an offer or accepted offer is HEALTHY and OFFER_HEAVY", () => {
+  const offerResult = getPipelineHealth(
+    pipeline({
+      activeApplications: 3,
+      activeInterviews: 1,
+      offers: 1,
+      interviewOffers: 1,
+    }),
+  );
+
+  assert.equal(offerResult.status, "HEALTHY");
+  assert.equal(offerResult.balance, "OFFER_HEAVY");
+
+  const acceptedResult = getPipelineHealth(
+    pipeline({
+      activeApplications: 2,
+      acceptedOffers: 1,
+      interviewOffers: 1,
+    }),
+  );
+
+  assert.equal(acceptedResult.status, "HEALTHY");
+  assert.equal(acceptedResult.balance, "OFFER_HEAVY");
+});
+
+test("pipeline with final rounds or interviews is HEALTHY", () => {
+  const finalResult = getPipelineHealth(
+    pipeline({
+      activeApplications: 2,
+      finalRounds: 1,
+    }),
+  );
+
+  assert.equal(finalResult.status, "HEALTHY");
+
+  const interviewResult = getPipelineHealth(
+    pipeline({
+      activeApplications: 2,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.equal(interviewResult.status, "HEALTHY");
+});
+
+test("pipeline with multiple applications but no downstream stage is FRAGILE", () => {
+  const result = getPipelineHealth(
+    pipeline({
+      activeApplications: 3,
+    }),
+  );
+
+  assert.equal(result.status, "FRAGILE");
+  assert.equal(result.balance, "APPLICATION_HEAVY");
+});
+
+test("pipeline with one or two applications and no downstream stage is also FRAGILE", () => {
+  const oneApplication = getPipelineHealth(
+    pipeline({
+      activeApplications: 1,
+    }),
+  );
+
+  assert.equal(oneApplication.status, "FRAGILE");
+
+  const twoApplications = getPipelineHealth(
+    pipeline({
+      activeApplications: 2,
+    }),
+  );
+
+  assert.equal(twoApplications.status, "FRAGILE");
+});
+
+test("empty pipeline is THIN", () => {
+  const result = getPipelineHealth(pipeline());
+
+  assert.equal(result.status, "THIN");
+  assert.equal(result.depth, 0);
+  assert.equal(result.conversion, null);
+  assert.equal(result.progression, null);
+});
+
+test("pipeline depth counts active applications, interviews, finals, and offers", () => {
+  const result = getPipelineHealth(
+    pipeline({
+      activeApplications: 5,
+      activeInterviews: 2,
+      finalRounds: 1,
+      offers: 1,
+      acceptedOffers: 1,
+    }),
+  );
+
+  assert.equal(result.depth, 9);
+});
+
+test("pipeline conversion includes interviews, finals, offers, and accepted offers", () => {
+  const result = getPipelineHealth(
+    pipeline({
+      activeApplications: 10,
+      activeInterviews: 2,
+      finalRounds: 1,
+      offers: 1,
+      acceptedOffers: 1,
+    }),
+  );
+
+  assert.equal(result.conversion, 50);
+});
+
+test("pipeline progression is calculated from active interviews", () => {
+  const result = getPipelineHealth(
+    pipeline({
+      activeApplications: 5,
+      activeInterviews: 4,
+      finalRounds: 1,
+      offers: 1,
+      acceptedOffers: 0,
+    }),
+  );
+
+  assert.equal(result.progression, 50);
+});
+
+test("pipeline progression is null when there are no active interviews", () => {
+  const result = getPipelineHealth(
+    pipeline({
+      activeApplications: 5,
+    }),
+  );
+
   assert.equal(result.progression, null);
 });
