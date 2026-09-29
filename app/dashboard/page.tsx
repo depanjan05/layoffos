@@ -282,6 +282,12 @@ export default function DashboardPage() {
     useState<RecoveryEngineResult | null>(null);
   const [completingRecoveryAction, setCompletingRecoveryAction] =
     useState<string | null>(null);
+
+  const [lastCompletedRecoveryAction, setLastCompletedRecoveryAction] =
+    useState<string | null>(null);
+
+  const [recoveryActionError, setRecoveryActionError] =
+    useState<string | null>(null);
   const [runwayData, setRunwayData] = useState<RunwayData | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -584,6 +590,7 @@ export default function DashboardPage() {
     }
 
     setCompletingRecoveryAction(actionKey);
+    setRecoveryActionError(null);
 
     try {
       const response = await fetch("/api/recovery-engine", {
@@ -599,8 +606,13 @@ export default function DashboardPage() {
       });
 
       if (!response.ok) {
+        setRecoveryActionError(
+          "LayoffOS could not save that completion. Try again.",
+        );
         return;
       }
+
+      setLastCompletedRecoveryAction(action.title);
 
       setRecoveryEngine((current) => {
         if (!current) {
@@ -1026,15 +1038,17 @@ export default function DashboardPage() {
 
         {recoveryEngine && (
           <section className="mb-10">
-            <div className="rounded-3xl border border-[#deded8] bg-white p-7 md:p-9">
-              <div className="flex flex-col justify-between gap-6 md:flex-row md:items-start">
+            <div className="rounded-3xl border border-[#deded8] bg-white p-5 sm:p-7 md:p-9">
+
+              {/* ENGINE HEADER */}
+              <div className="flex flex-col gap-5 border-b border-[#deded8] pb-7 sm:flex-row sm:items-start sm:justify-between">
                 <div className="max-w-3xl">
-                  <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
                     Recovery engine
                   </p>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <h2 className="text-3xl font-bold tracking-tight text-[#111]">
                       {recoveryEngine.stateLabel}
                     </h2>
 
@@ -1043,16 +1057,17 @@ export default function DashboardPage() {
                     </span>
                   </div>
 
-                  <p className="mt-4 max-w-2xl text-sm leading-6 text-[#66665f]">
+                  <p className="mt-3 text-sm leading-6 text-[#66665f]">
                     {recoveryEngine.stateReason}
                   </p>
                 </div>
 
-                <div className="min-w-[150px] rounded-2xl bg-[#f7f7f4] p-4">
+                <div className="w-full shrink-0 rounded-2xl bg-[#f7f7f4] px-5 py-4 sm:w-[170px]">
                   <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
                     Runway
                   </p>
-                  <p className="mt-2 text-2xl font-semibold">
+
+                  <p className="mt-2 text-2xl font-bold text-[#111]">
                     {recoveryEngine.runwayMonths === null
                       ? "—"
                       : `${recoveryEngine.runwayMonths.toFixed(1)} mo`}
@@ -1060,699 +1075,761 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="mt-8 rounded-2xl border border-[#deded8] bg-[#f7f7f4] p-5 md:p-6">
-                <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-                  <div className="max-w-3xl">
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                      Current situation
-                    </p>
-                    <h3 className="mt-2 text-xl font-semibold tracking-tight text-[#111] md:text-2xl">
-                      {recoveryEngine.situation.headline}
+              {/* CURRENT SITUATION */}
+              <div className="mt-7 rounded-2xl border border-[#deded8] bg-[#f7f7f4] p-5 sm:p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                  Current situation
+                </p>
+
+                <h3 className="mt-2 max-w-3xl text-2xl font-bold tracking-tight text-[#111]">
+                  {recoveryEngine.situation.headline}
+                </h3>
+
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-[#66665f]">
+                  {recoveryEngine.situation.summary}
+                </p>
+
+                {recoveryEngine.change && (
+                  <div className="mt-6 grid gap-5 border-t border-[#deded8] pt-5 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
+                        What changed
+                      </p>
+
+                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
+                        {recoveryEngine.change.headline}
+                      </p>
+
+                      <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                        {recoveryEngine.change.summary}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
+                        Why it matters
+                      </p>
+
+                      <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                        {recoveryEngine.change.implication}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-6 border-t border-[#deded8] pt-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
+                    What's blocking recovery
+                  </p>
+
+                  <p className="mt-2 text-base font-bold leading-6 text-[#22221f]">
+                    {recoveryEngine.bottleneck.headline}
+                  </p>
+
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[#66665f]">
+                    {recoveryEngine.bottleneck.summary}
+                  </p>
+
+                  <p className="mt-3 text-xs font-semibold leading-5 text-[#888880]">
+                    Focus: {recoveryEngine.bottleneck.focus}
+                  </p>
+                </div>
+              </div>
+
+              {/* RECOVERY SIGNALS */}
+              <div className="mt-7">
+                <div className="mb-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                    Recovery signals
+                  </p>
+
+                  <p className="mt-1 text-sm leading-5 text-[#66665f]">
+                    The signals LayoffOS is using to determine what matters next.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+                  {/* READINESS */}
+                  <div className="rounded-2xl border border-[#deded8] p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
+                        Transition readiness
+                      </p>
+
+                      <span className="text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                        {recoveryEngine.readiness.ready ? "Ready" : "Not ready"}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-3 text-lg font-bold tracking-tight text-[#111]">
+                      {recoveryEngine.readiness.headline}
                     </h3>
-                    <p className="mt-3 text-sm leading-6 text-[#66665f]">
-                      {recoveryEngine.situation.summary}
+
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.readiness.summary}
                     </p>
 
-                    {recoveryEngine.change && (
-                      <div className="mt-5 border-t border-[#deded8] pt-5">
-                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                          What changed
-                        </p>
-
-                        <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
-                          {recoveryEngine.change.headline}
-                        </p>
-
-                        <p className="mt-2 text-sm leading-5 text-[#66665f]">
-                          {recoveryEngine.change.summary}
-                        </p>
-
-                        <p className="mt-3 text-xs font-medium leading-5 text-[#888880]">
-                          Why it matters: {recoveryEngine.change.implication}
-                        </p>
-                      </div>
+                    {recoveryEngine.readiness.blockers.length > 0 && (
+                      <ul className="mt-4 space-y-1">
+                        {recoveryEngine.readiness.blockers.map((blocker) => (
+                          <li
+                            key={blocker}
+                            className="text-xs leading-5 text-[#66665f]"
+                          >
+                            • {blocker}
+                          </li>
+                        ))}
+                      </ul>
                     )}
 
-                    <div className="mt-5 border-t border-[#deded8] pt-5">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                        What's blocking recovery
-                      </p>
-
-                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
-                        {recoveryEngine.bottleneck.headline}
-                      </p>
-
-                      <p className="mt-2 text-sm leading-5 text-[#66665f]">
-                        {recoveryEngine.bottleneck.summary}
-                      </p>
-
-                      <p className="mt-3 text-xs font-medium leading-5 text-[#888880]">
-                        Focus: {recoveryEngine.bottleneck.focus}
-                      </p>
-                    </div>
-
-                    <div className="mt-5 border-t border-[#deded8] pt-5">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                          Transition readiness
-                        </p>
-
-                        <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
-                          {recoveryEngine.readiness.ready
-                            ? "Ready"
-                            : "Not ready"}
-                        </span>
-                      </div>
-
-                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
-                        {recoveryEngine.readiness.headline}
-                      </p>
-
-                      <p className="mt-2 text-sm leading-5 text-[#66665f]">
-                        {recoveryEngine.readiness.summary}
-                      </p>
-
-                      {recoveryEngine.readiness.blockers.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Blocking transition
-                          </p>
-
-                          <ul className="mt-2 space-y-1">
-                            {recoveryEngine.readiness.blockers.map((blocker) => (
-                              <li
-                                key={blocker}
-                                className="text-xs leading-5 text-[#66665f]"
-                              >
-                                • {blocker}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      <p className="mt-3 text-xs font-medium leading-5 text-[#888880]">
-                        Next state: {recoveryEngine.readiness.nextState}
-                      </p>
-                    </div>
-
-                    <div className="mt-5 border-t border-[#deded8] pt-5">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                          Pipeline health
-                        </p>
-
-                        <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
-                          {recoveryEngine.pipelineHealth.status}
-                        </span>
-                      </div>
-
-                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
-                        {recoveryEngine.pipelineHealth.headline}
-                      </p>
-
-                      <p className="mt-2 text-sm leading-5 text-[#66665f]">
-                        {recoveryEngine.pipelineHealth.summary}
-                      </p>
-
-                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Depth
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                            {recoveryEngine.pipelineHealth.depth}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Conversion
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                            {recoveryEngine.pipelineHealth.conversion !== null
-                              ? `${recoveryEngine.pipelineHealth.conversion}%`
-                              : "—"}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Progression
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                            {recoveryEngine.pipelineHealth.progression !== null
-                              ? `${recoveryEngine.pipelineHealth.progression}%`
-                              : "—"}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Balance
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                            {recoveryEngine.pipelineHealth.balance.replaceAll("_", " ")}
-                          </p>
-                        </div>
-                      </div>
-
-                      {recoveryEngine.pipelineHealth.signals.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Pipeline signals
-                          </p>
-
-                          <ul className="mt-2 space-y-1">
-                            {recoveryEngine.pipelineHealth.signals.map((signal) => (
-                              <li
-                                key={signal}
-                                className="text-xs leading-5 text-[#66665f]"
-                              >
-                                • {signal}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-5 border-t border-[#deded8] pt-5">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                          Recovery momentum
-                        </p>
-
-                        <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
-                          {recoveryEngine.momentum.status}
-                        </span>
-                      </div>
-
-                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
-                        {recoveryEngine.momentum.headline}
-                      </p>
-
-                      <p className="mt-2 text-sm leading-5 text-[#66665f]">
-                        {recoveryEngine.momentum.summary}
-                      </p>
-
-                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Direction
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                            {recoveryEngine.momentum.direction}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Advances
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                            {recoveryEngine.momentum.recentAdvances}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Setbacks
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                            {recoveryEngine.momentum.recentSetbacks}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Closures
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                            {recoveryEngine.momentum.recentClosures}
-                          </p>
-                        </div>
-                      </div>
-
-                      {recoveryEngine.momentum.signals.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
-                            Momentum signals
-                          </p>
-
-                          <ul className="mt-2 space-y-1">
-                            {recoveryEngine.momentum.signals.map((signal) => (
-                              <li
-                                key={signal}
-                                className="text-xs leading-5 text-[#66665f]"
-                              >
-                                • {signal}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-5 border-t border-[#deded8] pt-5">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                        Recovery outcome
-                      </p>
-                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
-                        {recoveryEngine.outcome.status}
-                      </span>
-                    </div>
-
-                    <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
-                      {recoveryEngine.outcome.headline}
-                    </p>
-
-                    <p className="mt-2 text-sm leading-5 text-[#66665f]">
-                      {recoveryEngine.outcome.summary}
-                    </p>
-
-                    {recoveryEngine.outcome.evidence.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Outcome evidence
-                        </p>
-
-                        <ul className="mt-2 space-y-1">
-                          {recoveryEngine.outcome.evidence.map((item) => (
-                            <li
-                              key={item}
-                              className="text-xs leading-5 text-[#66665f]"
-                            >
-                              • {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    <p className="mt-4 text-xs font-medium leading-5 text-[#66665f]">
-                      {recoveryEngine.outcome.recommendation}
+                    <p className="mt-4 text-xs font-semibold text-[#888880]">
+                      Next state:{" "}
+                      {recoveryEngine.readiness.nextState.replaceAll("_", " ")}
                     </p>
                   </div>
 
-                  <div className="mt-5 border-t border-[#deded8] pt-5">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                        Action effect
+                  {/* PIPELINE */}
+                  <div className="rounded-2xl border border-[#deded8] p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
+                        Pipeline health
                       </p>
 
-                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
-                        {recoveryEngine.actionEffect.status}
+                      <span className="text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                        {recoveryEngine.pipelineHealth.status}
                       </span>
                     </div>
 
-                    <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
-                      {recoveryEngine.actionEffect.headline}
+                    <h3 className="mt-3 text-lg font-bold tracking-tight text-[#111]">
+                      {recoveryEngine.pipelineHealth.headline}
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.pipelineHealth.summary}
                     </p>
 
-                    <p className="mt-2 text-sm leading-5 text-[#66665f]">
-                      {recoveryEngine.actionEffect.summary}
-                    </p>
-
-                    {recoveryEngine.actionEffect.evidence.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Action evidence
-                        </p>
-
-                        <ul className="mt-2 space-y-1">
-                          {recoveryEngine.actionEffect.evidence.map((item) => (
-                            <li
-                              key={item}
-                              className="text-xs leading-5 text-[#66665f]"
-                            >
-                              • {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    <p className="mt-4 text-xs font-medium leading-5 text-[#66665f]">
-                      {recoveryEngine.actionEffect.recommendation}
-                    </p>
-                  </div>
-
-                  <div className="mt-5 border-t border-[#deded8] pt-5">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                        Action recalibration
-                      </p>
-
-                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
-                        {recoveryEngine.actionRecalibration.decision}
-                      </span>
-                    </div>
-
-                    {recoveryEngine.actionRecalibration.actionTitle && (
-                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
-                        {recoveryEngine.actionRecalibration.actionTitle}
-                      </p>
-                    )}
-
-                    <p className="mt-2 text-sm leading-5 text-[#66665f]">
-                      {recoveryEngine.actionRecalibration.reason}
-                    </p>
-
-                    {recoveryEngine.actionRecalibration.evidence.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Recalibration evidence
-                        </p>
-
-                        <ul className="mt-2 space-y-1">
-                          {recoveryEngine.actionRecalibration.evidence.map(
-                            (item) => (
-                              <li
-                                key={item}
-                                className="text-xs leading-5 text-[#66665f]"
-                              >
-                                • {item}
-                              </li>
-                            )
-                          )}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-5 border-t border-[#deded8] pt-5">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                        Action memory
-                      </p>
-
-                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
-                        {recoveryEngine.actionMemory.confidence} confidence
-                      </span>
-                    </div>
-
-                    {recoveryEngine.actionMemory.actionTitle && (
-                      <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
-                        {recoveryEngine.actionMemory.actionTitle}
-                      </p>
-                    )}
-
-                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="mt-5 grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Instances
+                          Depth
                         </p>
-                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                          {recoveryEngine.actionMemory.instances}
+                        <p className="mt-1 text-lg font-bold text-[#111]">
+                          {recoveryEngine.pipelineHealth.depth}
                         </p>
                       </div>
 
                       <div>
                         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Positive
+                          Conversion
                         </p>
-                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                          {recoveryEngine.actionMemory.positive}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Negative
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                          {recoveryEngine.actionMemory.negative}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Unknown
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                          {recoveryEngine.actionMemory.unknown}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Positive rate
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                          {recoveryEngine.actionMemory.positiveRate === null
+                        <p className="mt-1 text-lg font-bold text-[#111]">
+                          {recoveryEngine.pipelineHealth.conversion === null
                             ? "—"
-                            : `${Math.round(
-                                recoveryEngine.actionMemory.positiveRate * 100
-                              )}%`}
+                            : `${recoveryEngine.pipelineHealth.conversion}%`}
                         </p>
                       </div>
 
                       <div>
                         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Historical recommendation
+                          Progression
                         </p>
-                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                          {recoveryEngine.actionMemory.recommendation}
-                        </p>
-                      </div>
-                    </div>
-
-                    {recoveryEngine.actionMemory.evidence.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Memory evidence
-                        </p>
-
-                        <ul className="mt-2 space-y-1">
-                          {recoveryEngine.actionMemory.evidence.map((item) => (
-                            <li
-                              key={item}
-                              className="text-xs leading-5 text-[#66665f]"
-                            >
-                              • {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-5 border-t border-[#deded8] pt-5">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                        Recalibration
-                      </p>
-
-                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#55554f]">
-                        {recoveryEngine.recalibration.needed
-                          ? "Needed"
-                          : "Not needed"}
-                      </span>
-                    </div>
-
-                    <p className="mt-2 text-sm font-semibold leading-5 text-[#22221f]">
-                      {recoveryEngine.recalibration.headline}
-                    </p>
-
-                    <p className="mt-2 text-sm leading-5 text-[#66665f]">
-                      {recoveryEngine.recalibration.summary}
-                    </p>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Reason
-                        </p>
-                        <p className="mt-1 text-sm leading-5 text-[#33332f]">
-                          {recoveryEngine.recalibration.reason}
+                        <p className="mt-1 text-lg font-bold text-[#111]">
+                          {recoveryEngine.pipelineHealth.progression === null
+                            ? "—"
+                            : `${recoveryEngine.pipelineHealth.progression}%`}
                         </p>
                       </div>
 
                       <div>
                         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#888880]">
-                          Next focus
+                          Balance
                         </p>
-                        <p className="mt-1 text-sm font-semibold text-[#22221f]">
-                          {recoveryEngine.recalibration.nextFocus.replaceAll(
+                        <p className="mt-1 text-sm font-bold text-[#111]">
+                          {recoveryEngine.pipelineHealth.balance.replaceAll(
                             "_",
                             " "
                           )}
                         </p>
                       </div>
                     </div>
+
+                    {recoveryEngine.pipelineHealth.signals.length > 0 && (
+                      <ul className="mt-4 space-y-1 border-t border-[#deded8] pt-4">
+                        {recoveryEngine.pipelineHealth.signals.map((signal) => (
+                          <li
+                            key={signal}
+                            className="text-xs leading-5 text-[#66665f]"
+                          >
+                            • {signal}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
 
-                  {recoveryEngine.situation.risk && (
-                    <div className="shrink-0 rounded-xl border border-[#deded8] bg-white px-4 py-3 md:max-w-xs">
+                  {/* MOMENTUM */}
+                  <div className="rounded-2xl border border-[#deded8] p-5">
+                    <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
-                        Risk
+                        Recovery momentum
                       </p>
-                      <p className="mt-2 text-sm font-semibold leading-5 text-[#33332f]">
-                        {recoveryEngine.situation.risk}
-                      </p>
+
+                      <span className="text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                        {recoveryEngine.momentum.status}
+                      </span>
                     </div>
-                  )}
+
+                    <h3 className="mt-3 text-lg font-bold tracking-tight text-[#111]">
+                      {recoveryEngine.momentum.headline}
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.momentum.summary}
+                    </p>
+
+                    <div className="mt-5 grid grid-cols-3 gap-3">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#888880]">
+                          Advances
+                        </p>
+                        <p className="mt-1 text-lg font-bold text-[#111]">
+                          {recoveryEngine.momentum.recentAdvances}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#888880]">
+                          Setbacks
+                        </p>
+                        <p className="mt-1 text-lg font-bold text-[#111]">
+                          {recoveryEngine.momentum.recentSetbacks}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#888880]">
+                          Closures
+                        </p>
+                        <p className="mt-1 text-lg font-bold text-[#111]">
+                          {recoveryEngine.momentum.recentClosures}
+                        </p>
+                      </div>
+                    </div>
+
+                    {recoveryEngine.momentum.signals.length > 0 && (
+                      <ul className="mt-4 space-y-1 border-t border-[#deded8] pt-4">
+                        {recoveryEngine.momentum.signals.map((signal) => (
+                          <li
+                            key={signal}
+                            className="text-xs leading-5 text-[#66665f]"
+                          >
+                            • {signal}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* OUTCOME */}
+                  <div className="rounded-2xl border border-[#deded8] p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
+                        Recovery outcome
+                      </p>
+
+                      <span className="text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                        {recoveryEngine.outcome.status}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-3 text-lg font-bold tracking-tight text-[#111]">
+                      {recoveryEngine.outcome.headline}
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.outcome.summary}
+                    </p>
+
+                    {recoveryEngine.outcome.evidence.length > 0 && (
+                      <ul className="mt-4 space-y-1">
+                        {recoveryEngine.outcome.evidence.map((item) => (
+                          <li
+                            key={item}
+                            className="text-xs leading-5 text-[#66665f]"
+                          >
+                            • {item}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    <p className="mt-4 text-sm font-semibold leading-5 text-[#44443f]">
+                      {recoveryEngine.outcome.recommendation}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-8 grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
-                <div>
+              {/* ACTION INTELLIGENCE */}
+              <div className="mt-7 rounded-2xl border border-[#deded8] bg-[#fafaf7] p-5 sm:p-6">
+                <div className="mb-5">
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                    Current priorities
+                    Action intelligence
                   </p>
 
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <p className="mt-1 text-sm leading-5 text-[#66665f]">
+                    What LayoffOS learned from the actions you have completed.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+
+                  {/* EFFECT */}
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                        Action effect
+                      </p>
+
+                      <span className="text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                        {recoveryEngine.actionEffect.status}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-3 text-base font-bold leading-5 text-[#111]">
+                      {recoveryEngine.actionEffect.headline}
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.actionEffect.summary}
+                    </p>
+
+                    {recoveryEngine.actionEffect.evidence.length > 0 && (
+                      <ul className="mt-4 space-y-1">
+                        {recoveryEngine.actionEffect.evidence.map((item) => (
+                          <li
+                            key={item}
+                            className="text-xs leading-5 text-[#66665f]"
+                          >
+                            • {item}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    <p className="mt-4 text-xs font-semibold leading-5 text-[#55554f]">
+                      {recoveryEngine.actionEffect.recommendation}
+                    </p>
+                  </div>
+
+                  {/* RECALIBRATION */}
+                  <div className="border-t border-[#deded8] pt-5 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                        Action recalibration
+                      </p>
+
+                      <span className="text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                        {recoveryEngine.actionRecalibration.decision}
+                      </span>
+                    </div>
+
+                    {recoveryEngine.actionRecalibration.actionTitle && (
+                      <h3 className="mt-3 text-base font-bold leading-5 text-[#111]">
+                        {recoveryEngine.actionRecalibration.actionTitle}
+                      </h3>
+                    )}
+
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.actionRecalibration.reason}
+                    </p>
+
+                    {recoveryEngine.actionRecalibration.evidence.length > 0 && (
+                      <ul className="mt-4 space-y-1">
+                        {recoveryEngine.actionRecalibration.evidence.map(
+                          (item) => (
+                            <li
+                              key={item}
+                              className="text-xs leading-5 text-[#66665f]"
+                            >
+                              • {item}
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* MEMORY */}
+                  <div className="border-t border-[#deded8] pt-5 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                        Action memory
+                      </p>
+
+                      <span className="text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                        {recoveryEngine.actionMemory.confidence}
+                      </span>
+                    </div>
+
+                    {recoveryEngine.actionMemory.actionTitle && (
+                      <h3 className="mt-3 text-base font-bold leading-5 text-[#111]">
+                        {recoveryEngine.actionMemory.actionTitle}
+                      </h3>
+                    )}
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#888880]">
+                          Instances
+                        </p>
+                        <p className="mt-1 text-base font-bold text-[#111]">
+                          {recoveryEngine.actionMemory.instances}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#888880]">
+                          Positive
+                        </p>
+                        <p className="mt-1 text-base font-bold text-[#111]">
+                          {recoveryEngine.actionMemory.positive}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#888880]">
+                          Negative
+                        </p>
+                        <p className="mt-1 text-base font-bold text-[#111]">
+                          {recoveryEngine.actionMemory.negative}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#888880]">
+                          Unknown
+                        </p>
+                        <p className="mt-1 text-base font-bold text-[#111]">
+                          {recoveryEngine.actionMemory.unknown}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 border-t border-[#deded8] pt-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#888880]">
+                        Historical recommendation
+                      </p>
+
+                      <p className="mt-1 text-sm font-bold text-[#111]">
+                        {recoveryEngine.actionMemory.recommendation}
+                      </p>
+
+                      {recoveryEngine.actionMemory.positiveRate !== null && (
+                        <p className="mt-1 text-xs text-[#66665f]">
+                          Positive rate:{" "}
+                          {Math.round(
+                            recoveryEngine.actionMemory.positiveRate * 100
+                          )}
+                          %
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* RECALIBRATION */}
+              <div className="mt-7 rounded-2xl border border-[#deded8] p-5 sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="max-w-3xl">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                      Recovery recalibration
+                    </p>
+
+                    <h3 className="mt-2 text-xl font-bold tracking-tight text-[#111]">
+                      {recoveryEngine.recalibration.headline}
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.recalibration.summary}
+                    </p>
+                  </div>
+
+                  <span className="shrink-0 text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                    {recoveryEngine.recalibration.needed
+                      ? "Needed"
+                      : "Not needed"}
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-5 border-t border-[#deded8] pt-5 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                      Reason
+                    </p>
+
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.recalibration.reason}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                      Next focus
+                    </p>
+
+                    <p className="mt-2 text-sm font-bold text-[#111]">
+                      {recoveryEngine.recalibration.nextFocus.replaceAll(
+                        "_",
+                        " "
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* RISK / PRIORITIES / TRANSITION */}
+              <div className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-2">
+
+                {recoveryEngine.situation.risk && (
+                  <div className="rounded-2xl border border-[#deded8] p-5">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
+                      Risk
+                    </p>
+
+                    <p className="mt-3 text-sm font-semibold leading-6 text-[#44443f]">
+                      {recoveryEngine.situation.risk}
+                    </p>
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-[#deded8] p-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
+                    Priorities
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
                     {recoveryEngine.priorities.map((priority) => (
                       <span
                         key={priority}
-                        className="rounded-full border border-[#deded8] px-3 py-2 text-sm text-[#33332f]"
+                        className="rounded-full bg-[#f1f1ec] px-3 py-1 text-xs font-bold uppercase tracking-[0.08em] text-[#55554f]"
                       >
-                        {priority}
+                        {priority.replaceAll("_", " ")}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-[#deded8] bg-[#fafaf7] p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                        Next transition
-                      </p>
+                <div className="rounded-2xl border border-[#deded8] p-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
+                    Transition
+                  </p>
 
-                      <h3 className="mt-2 font-semibold text-[#111]">
-                        {recoveryEngine.transition.label}
-                      </h3>
+                  <p className="mt-3 text-base font-bold text-[#111]">
+                    {recoveryEngine.transition.label}
+                  </p>
 
-                      <p className="mt-1 text-sm leading-5 text-[#66665f]">
-                        {recoveryEngine.transition.reason}
-                      </p>
-                    </div>
+                  <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                    {recoveryEngine.transition.reason}
+                  </p>
 
-                    <span className="shrink-0 rounded-full border border-[#deded8] px-3 py-1 text-xs font-semibold text-[#55554f]">
-                      {recoveryEngine.transition.nextState.replaceAll("_", " ")}
-                    </span>
-                  </div>
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-[#888880]">
+                    Next state:{" "}
+                    {recoveryEngine.transition.nextState.replaceAll("_", " ")}
+                  </p>
                 </div>
 
-                <div className="rounded-2xl border border-[#deded8] bg-[#fafaf7] p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                <div className="rounded-2xl border border-[#deded8] p-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#888880]">
                     Pipeline signal
                   </p>
 
-                  <h3 className="mt-2 font-semibold text-[#111]">
+                  <p className="mt-3 text-base font-bold text-[#111]">
                     {recoveryEngine.pipelineSignal.replaceAll("_", " ")}
-                  </h3>
+                  </p>
 
-                  <p className="mt-1 text-sm leading-5 text-[#66665f]">
+                  <p className="mt-2 text-sm leading-6 text-[#66665f]">
                     {recoveryEngine.pipelineSignal === "OFFER_STAGE"
-                      ? "An offer-stage opportunity is active."
+                      ? "An offer-stage opportunity is driving the current recovery state."
                       : recoveryEngine.pipelineSignal === "SETBACK"
-                        ? "A recent opportunity closed or was rejected."
+                        ? "Recent pipeline movement indicates a setback."
                         : recoveryEngine.pipelineSignal === "BUILDING"
-                          ? "Your active pipeline is moving forward."
+                          ? "The recovery pipeline is being rebuilt."
                           : recoveryEngine.pipelineSignal === "ACTIVE"
-                            ? "You have active opportunities in the pipeline."
-                            : "Your active opportunity pipeline is currently light."}
+                            ? "Active recovery activity is underway."
+                            : "No dominant pipeline signal is currently detected."}
                   </p>
                 </div>
+              </div>
 
-                {recoveryEngine.recentProgression && (
-                  <div className="rounded-2xl border border-[#deded8] bg-[#fafaf7] p-4">
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                      Recent progress
-                    </p>
+              {/* RECENT PROGRESSION */}
+              {recoveryEngine.recentProgression && (
+                <div className="mt-7 rounded-2xl border border-[#deded8] bg-[#fafaf7] p-5 sm:p-6">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                    Recent progression
+                  </p>
 
-                    <h3 className="mt-2 font-semibold text-[#111]">
-                      {recoveryEngine.recentProgression.company}
-                    </h3>
-
-                    <p className="mt-1 text-sm text-[#66665f]">
-                      {recoveryEngine.recentProgression.role}
-                    </p>
-
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-[#55554f]">
-                      <span>
-                        {recoveryEngine.recentProgression.previousStage}
-                      </span>
-                      <span>→</span>
-                      <span>
-                        {recoveryEngine.recentProgression.newStage}
-                      </span>
+                  <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#888880]">
+                        Company
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-[#111]">
+                        {recoveryEngine.recentProgression.company}
+                      </p>
                     </div>
 
-                    <p className="mt-2 text-sm leading-5 text-[#66665f]">
-                      {recoveryEngine.recentProgression.type === "interview"
-                        ? "Recent interview stage change."
-                        : "Recent application stage change."}
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#888880]">
+                        Role
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-[#111]">
+                        {recoveryEngine.recentProgression.role}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#888880]">
+                        Movement
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-[#111]">
+                        {recoveryEngine.recentProgression.previousStage} →{" "}
+                        {recoveryEngine.recentProgression.newStage}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* EXECUTION */}
+              <div className="mt-7 rounded-2xl border border-[#111] bg-[#111] p-5 text-white sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="max-w-2xl">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b8b8b0]">
+                      Recovery execution
+                    </p>
+
+                    <h3 className="mt-2 text-2xl font-bold tracking-tight">
+                      Do the next useful thing.
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-[#c7c7c0]">
+                      Complete one action, then let LayoffOS recalculate what
+                      matters next.
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 rounded-xl bg-white/10 px-4 py-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#b8b8b0]">
+                      Ready now
+                    </p>
+
+                    <p className="mt-1 text-lg font-bold">
+                      {recoveryEngine.actions.length} actions
+                    </p>
+                  </div>
+                </div>
+
+                {lastCompletedRecoveryAction && (
+                  <div className="mt-5 rounded-xl bg-white/10 px-4 py-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#b8b8b0]">
+                      Just completed
+                    </p>
+
+                    <p className="mt-1 text-sm font-bold">
+                      {lastCompletedRecoveryAction}
+                    </p>
+
+                    {recoveryEngine.actions.length > 0 && (
+                      <p className="mt-1 text-xs leading-5 text-[#c7c7c0]">
+                        Your next recommendation is ready below.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {recoveryActionError && (
+                  <div className="mt-5 rounded-xl bg-white/10 px-4 py-3">
+                    <p className="text-xs font-semibold leading-5 text-[#deded8]">
+                      {recoveryActionError}
                     </p>
                   </div>
                 )}
 
-                <div className="lg:col-span-2">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                    Recommended next actions
-                  </p>
+                <div className="mt-6 border-t border-white/15 pt-6">
+                  <div className="mb-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#b8b8b0]">
+                      Recommended next actions
+                    </p>
+                  </div>
 
-                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {recoveryEngine.actions.slice(0, 3).map((action) => {
-                      const actionKey = `${action.title}-${action.href}`;
-                      const isCompleting =
-                        completingRecoveryAction === actionKey;
+                  {recoveryEngine.actions.length === 0 ? (
+                    <p className="text-sm leading-6 text-[#c7c7c0]">
+                      No additional recovery actions are currently queued.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      {recoveryEngine.actions.slice(0, 3).map((action) => {
+                        const actionKey = `${action.title}-${action.href}`;
+                        const isCompleting =
+                          completingRecoveryAction === actionKey;
 
-                      return (
-                        <div
-                          key={actionKey}
-                          className="rounded-2xl border border-[#deded8] p-4 transition hover:border-[#bdbdb5] hover:bg-[#fafaf7]"
-                        >
-                          <div className="flex items-start justify-between gap-4">
+                        return (
+                          <div
+                            key={actionKey}
+                            className="rounded-2xl border border-white/15 bg-white/[0.04] p-4"
+                          >
                             <Link
                               href={action.href}
-                              className="min-w-0 flex-1"
+                              className="block"
                             >
-                              <h3 className="font-semibold text-[#111]">
-                                {action.title}
-                              </h3>
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#b8b8b0]">
+                                    {action.priority}
+                                  </p>
 
-                              <p className="mt-1 text-sm leading-5 text-[#66665f]">
-                                {action.reason}
-                              </p>
+                                  <h4 className="mt-2 text-base font-bold leading-5">
+                                    {action.title}
+                                  </h4>
 
-                              {action.evidence && (
-                                <p className="mt-2 text-xs font-medium text-[#888880]">
-                                  Evidence: {action.evidence}
-                                </p>
-                              )}
+                                  <p className="mt-2 text-sm leading-6 text-[#c7c7c0]">
+                                    {action.reason}
+                                  </p>
+
+                                  {action.evidence && (
+                                    <p className="mt-2 text-xs leading-5 text-[#a9a9a2]">
+                                      Evidence: {action.evidence}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <span className="shrink-0 text-lg text-[#b8b8b0]">
+                                  →
+                                </span>
+                              </div>
                             </Link>
 
-                            <span className="shrink-0 text-lg text-[#77776f]">
-                              →
-                            </span>
-                          </div>
-
-                          <div className="mt-4">
                             <button
                               type="button"
                               onClick={() => completeRecoveryAction(action)}
                               disabled={isCompleting}
-                              className="rounded-xl border border-[#d4d4ce] px-3 py-2 text-xs font-semibold text-[#111] transition hover:bg-[#f4f4ef] disabled:cursor-not-allowed disabled:opacity-50"
+                              className="mt-4 w-full rounded-xl bg-white px-3 py-2.5 text-xs font-bold text-[#111] transition hover:bg-[#eeeeea] disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               {isCompleting
                                 ? "Marking complete..."
                                 : "Mark complete"}
                             </button>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
+
             </div>
           </section>
         )}
