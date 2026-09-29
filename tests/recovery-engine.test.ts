@@ -2790,3 +2790,111 @@ test("decision trace preserves the selected recommendation set", () => {
     );
   }
 });
+
+test("decision trace records competing candidate score for category conflicts", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  const alternatives = actions.flatMap(
+    (action) => action.decisionTrace?.alternatives ?? [],
+  );
+
+  const categoryCompetition = alternatives.filter(
+    (candidate) =>
+      candidate.selectionContext.competingCandidate &&
+      candidate.selectionContext.competingScore !== undefined,
+  );
+
+  assert.ok(categoryCompetition.length > 0);
+
+  for (const candidate of categoryCompetition) {
+    assert.equal(
+      candidate.selectionContext.pass,
+      "NOT_SELECTED",
+    );
+
+    assert.equal(
+      typeof candidate.selectionContext.competingScore,
+      "number",
+    );
+
+    assert.ok(
+      candidate.selectionContext.competingScore! >=
+        candidate.finalScore,
+    );
+  }
+});
+
+test("decision trace records the actual selection pass for selected candidates", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  assert.ok(actions.length > 0);
+
+  for (const action of actions) {
+    const context = action.decisionTrace?.selectionContext;
+
+    assert.ok(context);
+
+    assert.ok(
+      [
+        "CRITICAL_RUNWAY",
+        "DIVERSITY",
+        "RANKED_FILL",
+      ].includes(context.pass),
+    );
+
+    assert.equal(
+      context.reason,
+      action.decisionTrace?.selectionReason,
+    );
+  }
+});
+
+test("ranked-fill selections are explicitly recorded as ranked-fill decisions", () => {
+  const actions = getActions(
+    actionInput(),
+    "OFFER",
+    6,
+    null,
+    "NEUTRAL",
+    "OFFER_STAGE",
+    pipelineComposition({
+      offers: 1,
+      activeInterviews: 1,
+    }),
+  );
+
+  const rankedFillActions = actions.filter(
+    (action) =>
+      action.decisionTrace?.selectionContext.pass ===
+      "RANKED_FILL",
+  );
+
+  for (const action of rankedFillActions) {
+    assert.equal(
+      action.decisionTrace?.selectionReason,
+      "Selected during ranked fill pass",
+    );
+  }
+});

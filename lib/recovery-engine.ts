@@ -24,6 +24,7 @@ export type RecoveryDecisionSelectionContext = {
   pass: "CRITICAL_RUNWAY" | "DIVERSITY" | "RANKED_FILL" | "NOT_SELECTED";
   reason: string;
   competingCandidate?: string;
+  competingScore?: number;
 };
 
 export type RecoveryDecisionCandidate = {
@@ -2727,6 +2728,11 @@ export function getActions(
     string
   >();
 
+  const selectionContexts = new Map<
+    number,
+    RecoveryDecisionSelectionContext
+  >();
+
   // Critical financial runway is a hard constraint:
   // never allow an urgent interview/search context to completely
   // hide financial runway risk.
@@ -2742,6 +2748,11 @@ export function getActions(
         financialAction.index,
         "Selected by critical-runway constraint"
       );
+
+      selectionContexts.set(financialAction.index, {
+        pass: "CRITICAL_RUNWAY",
+        reason: "Selected by critical-runway constraint",
+      });
     }
   }
 
@@ -2752,6 +2763,22 @@ export function getActions(
     }
 
     if (selectedCategories.has(item.category)) {
+      const competingCandidate = selectedActions.find(
+        (selected) => selected.category === item.category
+      );
+
+      selectionContexts.set(item.index, {
+        pass: "NOT_SELECTED",
+        reason:
+          "Not selected because a stronger candidate already represented this category",
+        ...(competingCandidate
+          ? {
+              competingCandidate: competingCandidate.action.title,
+              competingScore: competingCandidate.score,
+            }
+          : {}),
+      });
+
       continue;
     }
 
@@ -2764,6 +2791,11 @@ export function getActions(
         "Selected during category-diversity pass"
       );
     }
+
+    selectionContexts.set(item.index, {
+      pass: "DIVERSITY",
+      reason: "Selected during category-diversity pass",
+    });
   }
 
   // Second pass: fill remaining slots with the strongest
@@ -2789,6 +2821,11 @@ export function getActions(
         "Selected during ranked fill pass"
       );
     }
+
+    selectionContexts.set(item.index, {
+      pass: "RANKED_FILL",
+      reason: "Selected during ranked fill pass",
+    });
   }
 
   // v1.37: materialize the complete candidate decision surface
@@ -2805,37 +2842,6 @@ export function getActions(
   sortedActions.forEach((item, index) => {
     candidateRanks.set(item.index, index + 1);
   });
-
-  const selectedCategoryOwners = new Map<string, string>();
-
-  for (const item of selectedActions) {
-    if (!selectedCategoryOwners.has(item.category)) {
-      selectedCategoryOwners.set(item.category, item.action.title);
-    }
-  }
-
-  const selectionContexts = new Map<
-    number,
-    RecoveryDecisionSelectionContext
-  >();
-
-  for (const item of selectedActions) {
-    const reason =
-      selectionReasons.get(item.index) ??
-      "Selected for recovery recommendation";
-
-    const pass: RecoveryDecisionSelectionContext["pass"] =
-      reason === "Selected by critical-runway constraint"
-        ? "CRITICAL_RUNWAY"
-        : reason === "Selected during category-diversity pass"
-          ? "DIVERSITY"
-          : "RANKED_FILL";
-
-    selectionContexts.set(item.index, {
-      pass,
-      reason,
-    });
-  }
 
   const candidateTraces: RecoveryDecisionCandidate[] =
     sortedActions.map((item) => {
@@ -2862,22 +2868,12 @@ export function getActions(
         };
       }
 
-      const competingCandidate =
-        selectedCategoryOwners.get(item.category);
-
       const selectionContext: RecoveryDecisionSelectionContext =
-        competingCandidate
-          ? {
-              pass: "NOT_SELECTED",
-              reason:
-                "Not selected because a stronger candidate already represented this category",
-              competingCandidate,
-            }
-          : {
-              pass: "NOT_SELECTED",
-              reason:
-                "Not selected because stronger candidates filled the available recommendation slots",
-            };
+        selectionContexts.get(item.index) ?? {
+          pass: "NOT_SELECTED",
+          reason:
+            "Not selected because stronger candidates filled the available recommendation slots",
+        };
 
       return {
         title: item.action.title,
