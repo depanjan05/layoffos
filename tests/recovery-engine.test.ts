@@ -7,6 +7,7 @@ import {
   getActions,
   getRecoveryDecision,
   getRecoveryStrategy,
+  getRecoveryExecutionPlan,
   calculateRecovery,
   getPipelineHealth,
   getProgressionSignal,
@@ -3338,4 +3339,265 @@ test("recovery engine exposes the strategy derived from its recovery decision", 
   assert.ok(result.recoveryStrategy.approach.length > 0);
   assert.ok(result.recoveryStrategy.guardrails.length > 0);
   assert.ok(result.recoveryStrategy.successSignals.length > 0);
+});
+
+test("recovery execution plan completes the recovery transition", () => {
+  const decision = {
+    decision: "Close out recovery",
+    objective:
+      "Complete the transition into stable employment and preserve the recovery gains.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  assert.equal(
+    plan.immediateAction,
+    "Complete the highest-priority outstanding transition step",
+  );
+  assert.equal(plan.sequence.length, 3);
+  assert.ok(plan.supportingActions.length > 0);
+  assert.ok(plan.avoidActions.length > 0);
+  assert.equal(plan.confidence, "HIGH");
+});
+
+test("recovery execution plan converts an offer into completed employment", () => {
+  const decision = {
+    decision: "Prioritize offer execution",
+    objective:
+      "Convert the strongest active offer opportunity into a completed recovery transition.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  assert.equal(
+    plan.immediateAction,
+    "Complete the next outstanding offer or decision step",
+  );
+  assert.ok(
+    plan.sequence.includes(
+      "Resolve open questions or blockers on the active offer",
+    ),
+  );
+  assert.ok(plan.supportingActions.includes("Keep appropriate backup coverage moving"));
+  assert.equal(plan.confidence, "HIGH");
+});
+
+test("recovery execution plan protects runway while preserving momentum", () => {
+  const decision = {
+    decision: "Stabilize runway while maintaining recovery momentum",
+    objective:
+      "Protect financial runway while preserving the shortest viable path back to employment.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  assert.equal(
+    plan.immediateAction,
+    "Review and protect immediate financial runway",
+  );
+  assert.equal(plan.sequence[0], "Protect immediate financial runway");
+  assert.ok(
+    plan.sequence.includes(
+      "Prioritize active opportunities with the shortest path to progression",
+    ),
+  );
+  assert.equal(plan.confidence, "HIGH");
+});
+
+test("recovery execution plan concentrates effort on final-round execution", () => {
+  const decision = {
+    decision: "Prioritize final-round progression",
+    objective:
+      "Convert the strongest late-stage opportunity into the next recovery transition.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  assert.equal(
+    plan.immediateAction,
+    "Prepare for the next final-round requirement",
+  );
+  assert.equal(
+    plan.sequence[0],
+    "Prepare specifically for the final-round requirements",
+  );
+  assert.ok(
+    plan.supportingActions.includes(
+      "Complete targeted final-round follow-up",
+    ),
+  );
+  assert.equal(plan.confidence, "HIGH");
+});
+
+test("recovery execution plan converts interviews into late-stage opportunities", () => {
+  const decision = {
+    decision: "Prioritize interview progression",
+    objective:
+      "Move active interview opportunities toward final rounds or offers.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  assert.equal(
+    plan.immediateAction,
+    "Prepare for the next active interview stage",
+  );
+  assert.equal(plan.sequence.length, 3);
+  assert.ok(
+    plan.supportingActions.includes(
+      "Identify opportunities showing progression",
+    ),
+  );
+  assert.equal(plan.confidence, "HIGH");
+});
+
+test("recovery execution plan replaces lost opportunity capacity", () => {
+  const decision = {
+    decision: "Rebuild the recovery pipeline",
+    objective:
+      "Replace lost opportunity capacity while learning from the latest pipeline change.",
+    evidence: [],
+    constraints: [],
+    confidence: "MEDIUM" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  assert.equal(
+    plan.immediateAction,
+    "Create the first qualified replacement opportunity",
+  );
+  assert.equal(plan.sequence[0], "Replace recently lost opportunity capacity");
+  assert.ok(
+    plan.supportingActions.includes(
+      "Use the latest setback or closure as selection evidence",
+    ),
+  );
+  assert.equal(plan.confidence, "MEDIUM");
+});
+
+test("recovery execution plan converts existing application volume", () => {
+  const decision = {
+    decision: "Prioritize application conversion",
+    objective:
+      "Turn existing application activity into active conversations and downstream opportunities before materially increasing volume.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  assert.equal(
+    plan.immediateAction,
+    "Follow up on the strongest existing application",
+  );
+  assert.equal(
+    plan.sequence[0],
+    "Follow up on the strongest existing applications",
+  );
+  assert.ok(
+    plan.supportingActions.includes(
+      "Track whether applications produce conversations",
+    ),
+  );
+  assert.equal(plan.confidence, "HIGH");
+});
+
+test("recovery execution plan maintains qualified search activity", () => {
+  const decision = {
+    decision: "Maintain active job search",
+    objective:
+      "Keep active opportunities moving while strengthening downstream pipeline depth.",
+    evidence: [],
+    constraints: [],
+    confidence: "MEDIUM" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  assert.equal(
+    plan.immediateAction,
+    "Advance the strongest qualified active opportunity",
+  );
+  assert.equal(plan.sequence[0], "Continue qualified applications");
+  assert.ok(
+    plan.sequence.includes(
+      "Strengthen downstream opportunities from the existing pipeline",
+    ),
+  );
+  assert.equal(plan.confidence, "MEDIUM");
+});
+
+test("recovery execution plan establishes sufficient qualified pipeline", () => {
+  const decision = {
+    decision: "Build recovery pipeline",
+    objective:
+      "Create enough qualified opportunities to move the recovery process into active progression.",
+    evidence: [],
+    constraints: [],
+    confidence: "MEDIUM" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  assert.equal(
+    plan.immediateAction,
+    "Create the first qualified recovery opportunity",
+  );
+  assert.equal(
+    plan.sequence[0],
+    "Create new qualified application opportunities",
+  );
+  assert.ok(
+    plan.supportingActions.includes(
+      "Create relevant networking and referral paths",
+    ),
+  );
+  assert.equal(plan.confidence, "MEDIUM");
+});
+
+test("recovery execution plan falls back safely for an unknown decision", () => {
+  const decision = {
+    decision: "Unknown recovery decision",
+    objective: "Continue recovery",
+    evidence: [],
+    constraints: [],
+    confidence: "LOW" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  assert.equal(
+    plan.immediateAction,
+    "Continue the highest-value recovery activity",
+  );
+  assert.equal(plan.sequence.length, 2);
+  assert.ok(plan.supportingActions.length > 0);
+  assert.equal(plan.confidence, "LOW");
 });
