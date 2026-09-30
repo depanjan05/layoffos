@@ -14,6 +14,7 @@ import {
   getPipelineHealth,
   getProgressionSignal,
   getRecoveryOutcome,
+  getRecoveryOutcomeIntelligence,
   getState,
   getWeeklyPlanTaskEffect,
   type RecentProgression,
@@ -137,6 +138,50 @@ test("forward progression produces a positive recovery outcome", () => {
 
   assert.equal(result.status, "POSITIVE");
   assert.match(result.summary, /Interview.*Final/i);
+});
+
+test("positive outcome intelligence preserves recovery direction", () => {
+  const outcome = getRecoveryOutcome(
+    progression("Interview", "Final"),
+  );
+
+  const result = getRecoveryOutcomeIntelligence(
+    outcome,
+    "ADVANCING",
+  );
+
+  assert.equal(result.direction, "POSITIVE");
+  assert.equal(result.impact, "MEDIUM");
+  assert.match(result.implication, /supports the current recovery direction/i);
+  assert.ok(result.evidence.length > 0);
+});
+
+test("closed outcome intelligence identifies high recovery impact", () => {
+  const outcome = getRecoveryOutcome(
+    progression("Final", "Withdrawn"),
+  );
+
+  const result = getRecoveryOutcomeIntelligence(
+    outcome,
+    "CLOSED",
+  );
+
+  assert.equal(result.direction, "NEGATIVE");
+  assert.equal(result.impact, "HIGH");
+  assert.match(result.implication, /lost an opportunity/i);
+});
+
+test("neutral outcome intelligence avoids directional overreaction", () => {
+  const outcome = getRecoveryOutcome(null);
+
+  const result = getRecoveryOutcomeIntelligence(
+    outcome,
+    "NEUTRAL",
+  );
+
+  assert.equal(result.direction, "NEUTRAL");
+  assert.equal(result.impact, "LOW");
+  assert.match(result.implication, /does not provide enough directional evidence/i);
 });
 
 test("weekly plan task matches only its destination progression type", () => {

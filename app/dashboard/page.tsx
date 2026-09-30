@@ -40,6 +40,12 @@ type RecoveryEngineResult = {
     evidence: string[];
     recommendation: string;
   };
+  outcomeIntelligence: {
+    direction: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
+    impact: "HIGH" | "MEDIUM" | "LOW";
+    implication: string;
+    evidence: string[];
+  };
   recalibration: {
     needed: boolean;
     headline: string;
@@ -1871,6 +1877,67 @@ export default function DashboardPage() {
                           {recoveryEngine.weeklyPlanTaskEffect.progression.company
                             ? ` · ${recoveryEngine.weeklyPlanTaskEffect.progression.company}`
                             : ""}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* OUTCOME INTELLIGENCE */}
+              <div className="mt-7 rounded-2xl border border-[#deded8] p-5 sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="max-w-3xl">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                      Outcome intelligence
+                    </p>
+
+                    <h3 className="mt-2 text-xl font-bold tracking-tight text-[#111]">
+                      {recoveryEngine.outcome.headline}
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.outcomeIntelligence.implication}
+                    </p>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#888880]">
+                      Direction
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-[#111]">
+                      {recoveryEngine.outcomeIntelligence.direction}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-5 border-t border-[#deded8] pt-5 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                      Impact
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-[#111]">
+                      {recoveryEngine.outcomeIntelligence.impact}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                      Evidence
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      {recoveryEngine.outcomeIntelligence.evidence.length > 0 ? (
+                        recoveryEngine.outcomeIntelligence.evidence.map((item) => (
+                          <p
+                            key={item}
+                            className="text-sm leading-6 text-[#66665f]"
+                          >
+                            {item}
+                          </p>
+                        ))
+                      ) : (
+                        <p className="text-sm leading-6 text-[#66665f]">
+                          No recent outcome evidence is available.
                         </p>
                       )}
                     </div>

@@ -144,6 +144,13 @@ export type RecoveryMomentum = {
   signals: string[];
 };
 
+export type RecoveryOutcomeIntelligence = {
+  direction: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
+  impact: "HIGH" | "MEDIUM" | "LOW";
+  implication: string;
+  evidence: string[];
+};
+
 export type RecoveryOutcome = {
   status: "POSITIVE" | "MIXED" | "NEGATIVE" | "NONE";
   headline: string;
@@ -924,6 +931,7 @@ export type RecoveryEngineResult = {
   pipelineHealth: PipelineHealth;
   momentum: RecoveryMomentum;
   outcome: RecoveryOutcome;
+  outcomeIntelligence: RecoveryOutcomeIntelligence;
   recalibration: RecoveryRecalibration;
   actionEffect: RecoveryActionEffect;
   actionRecalibration: ActionRecalibration;
@@ -4662,6 +4670,46 @@ function getRecoveryMomentum(
   };
 }
 
+export function getRecoveryOutcomeIntelligence(
+  outcome: RecoveryOutcome,
+  progressionSignal: string,
+): RecoveryOutcomeIntelligence {
+  if (outcome.status === "POSITIVE" || progressionSignal === "ADVANCING") {
+    return {
+      direction: "POSITIVE",
+      impact: "MEDIUM",
+      implication:
+        "The latest outcome supports the current recovery direction and provides evidence to continue execution.",
+      evidence: outcome.evidence,
+    };
+  }
+
+  if (
+    outcome.status === "NEGATIVE" ||
+    progressionSignal === "SETBACK" ||
+    progressionSignal === "CLOSED"
+  ) {
+    const isClosed = progressionSignal === "CLOSED";
+
+    return {
+      direction: "NEGATIVE",
+      impact: isClosed ? "HIGH" : "MEDIUM",
+      implication: isClosed
+        ? "The recovery pipeline lost an opportunity, reducing available recovery capacity and increasing the need to reassess the current path."
+        : "The latest outcome weakens the evidence supporting the current recovery direction and should be evaluated before expanding activity.",
+      evidence: outcome.evidence,
+    };
+  }
+
+  return {
+    direction: "NEUTRAL",
+    impact: "LOW",
+    implication:
+      "The latest outcome does not provide enough directional evidence to change the current recovery approach.",
+    evidence: outcome.evidence,
+  };
+}
+
 export function getRecoveryOutcome(
   progression: RecentProgression | null
 ): RecoveryOutcome {
@@ -4895,7 +4943,11 @@ export function calculateRecovery(
     pipelineComposition
   );
   const outcome = getRecoveryOutcome(recentProgression);
-const actionEffect = getRecoveryActionEffect(
+  const outcomeIntelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    progressionSignal,
+  );
+  const actionEffect = getRecoveryActionEffect(
     input.completedActions ?? [],
     input.progressionEvents ?? []
   );
@@ -4997,6 +5049,7 @@ const actionEffect = getRecoveryActionEffect(
     pipelineHealth,
     momentum,
     outcome,
+    outcomeIntelligence,
     recalibration: recoveryRecalibration,
     actionEffect,
     actionRecalibration,
