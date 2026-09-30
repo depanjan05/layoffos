@@ -52,6 +52,16 @@ export type RecoveryDecision = {
   confidence: "HIGH" | "MEDIUM" | "LOW";
 };
 
+export type RecoveryStrategy = {
+  strategy: string;
+  objective: string;
+  approach: string[];
+  guardrails: string[];
+  successSignals: string[];
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+};
+
+
 export type RecoveryActionDecisionTrace = {
   basePriority: number;
   adjustments: Array<{
@@ -910,6 +920,7 @@ export type RecoveryEngineResult = {
   weeklyPlanTaskEffect: WeeklyPlanTaskEffect;
   priorities: RecoveryPriority[];
   recoveryDecision: RecoveryDecision;
+  recoveryStrategy: RecoveryStrategy;
   actions: RecoveryAction[];
   transition: RecoveryTransition;
   recentProgression: RecentProgression | null;
@@ -2135,6 +2146,223 @@ export function getRecoveryDecision(
     constraints: [...new Set(constraints)],
     confidence: "MEDIUM",
   };
+}
+
+export function getRecoveryStrategy(
+  decision: RecoveryDecision,
+): RecoveryStrategy {
+  switch (decision.decision) {
+    case "Close out recovery":
+      return {
+        strategy: "Complete the recovery transition",
+        objective:
+          "Finish the transition into stable employment while preserving the gains already made.",
+        approach: [
+          "Complete outstanding transition steps",
+          "Confirm the employment transition is fully operational",
+          "Protect the financial and professional gains created by the recovery",
+        ],
+        guardrails: [
+          "Do not treat recovery as complete until the transition is operationally stable.",
+        ],
+        successSignals: [
+          "Employment transition is completed",
+          "Outstanding recovery tasks are closed",
+          "Financial and professional stability is preserved",
+        ],
+        confidence: decision.confidence,
+      };
+
+    case "Prioritize offer execution":
+      return {
+        strategy: "Convert the strongest offer opportunity into completed employment",
+        objective:
+          "Move the active offer-stage opportunity through the remaining steps required for a completed recovery transition.",
+        approach: [
+          "Complete outstanding offer and decision steps",
+          "Resolve open questions or blockers on the active offer",
+          "Maintain appropriate backup coverage until the transition is secure",
+        ],
+        guardrails: [
+          "Do not allow broad pipeline activity to displace critical offer execution.",
+        ],
+        successSignals: [
+          "Offer decision is completed",
+          "Required transition steps are completed",
+          "Employment status moves toward recovered",
+        ],
+        confidence: decision.confidence,
+      };
+
+    case "Stabilize runway while maintaining recovery momentum":
+      return {
+        strategy: "Protect runway while preserving the shortest viable recovery path",
+        objective:
+          "Reduce financial pressure without abandoning the strongest active recovery opportunities.",
+        approach: [
+          "Protect immediate financial runway",
+          "Prioritize active opportunities with the shortest path to progression",
+          "Continue only the recovery activities that preserve meaningful momentum",
+        ],
+        guardrails: [
+          "Do not trade away near-term recovery opportunities solely for additional search volume.",
+          "Financial stabilization must remain compatible with continued recovery progress.",
+        ],
+        successSignals: [
+          "Runway pressure is reduced or stabilized",
+          "Active opportunities continue progressing",
+          "Recovery momentum is preserved",
+        ],
+        confidence: decision.confidence,
+      };
+
+    case "Prioritize final-round progression":
+      return {
+        strategy: "Concentrate effort on final-round execution",
+        objective:
+          "Convert the strongest late-stage opportunity into the next recovery transition.",
+        approach: [
+          "Prepare specifically for the final-round requirements",
+          "Complete targeted follow-up with the opportunity",
+          "Remove avoidable blockers between final round and offer",
+        ],
+        guardrails: [
+          "Do not let broad application volume dilute final-round preparation.",
+        ],
+        successSignals: [
+          "Final-round opportunity advances",
+          "Decision-stage activity increases",
+          "An offer or equivalent downstream transition is created",
+        ],
+        confidence: decision.confidence,
+      };
+
+    case "Prioritize interview progression":
+      return {
+        strategy: "Convert active interviews into late-stage opportunities",
+        objective:
+          "Move active interview opportunities toward final rounds or offers.",
+        approach: [
+          "Prepare for the next interview stage",
+          "Follow up on active interview opportunities",
+          "Prioritize opportunities showing meaningful progression signals",
+        ],
+        guardrails: [
+          "Protect interview execution before materially increasing broad application volume.",
+        ],
+        successSignals: [
+          "Interviews advance to later stages",
+          "Follow-up produces concrete next steps",
+          "Final-round or offer-stage opportunities emerge",
+        ],
+        confidence: decision.confidence,
+      };
+
+    case "Rebuild the recovery pipeline":
+      return {
+        strategy: "Replace lost opportunity capacity",
+        objective:
+          "Restore enough qualified pipeline depth to compensate for the latest setback or closure.",
+        approach: [
+          "Replace recently lost opportunity capacity",
+          "Rebuild qualified applications and conversations",
+          "Learn from the latest pipeline change when selecting replacement opportunities",
+        ],
+        guardrails: [
+          "Do not respond to a setback with undifferentiated volume alone.",
+          "Replacement opportunities should remain aligned with the recovery objective.",
+        ],
+        successSignals: [
+          "New qualified opportunities enter the pipeline",
+          "Application and conversation volume recovers",
+          "A new downstream progression signal appears",
+        ],
+        confidence: decision.confidence,
+      };
+
+    case "Prioritize application conversion":
+      return {
+        strategy: "Convert existing application volume into conversations",
+        objective:
+          "Turn existing application activity into active conversations and downstream opportunities before materially increasing volume.",
+        approach: [
+          "Follow up on the strongest existing applications",
+          "Identify applications that can be converted into conversations",
+          "Use relevant warm or human touchpoints where available",
+        ],
+        guardrails: [
+          "Do not compensate for weak conversion by simply increasing application volume.",
+          "Existing application opportunities should receive conversion attention before broad expansion.",
+        ],
+        successSignals: [
+          "Applications begin producing conversations",
+          "Interview opportunities emerge from existing application volume",
+          "Application-to-conversation conversion improves",
+        ],
+        confidence: decision.confidence,
+      };
+
+    case "Maintain active job search":
+      return {
+        strategy: "Maintain qualified search activity while strengthening downstream depth",
+        objective:
+          "Keep active opportunities moving while improving the depth and quality of the recovery pipeline.",
+        approach: [
+          "Continue qualified applications",
+          "Strengthen downstream opportunities from the existing pipeline",
+          "Monitor progression rather than optimizing for application count alone",
+        ],
+        guardrails: [
+          "Do not let search volume replace progression through existing opportunities.",
+        ],
+        successSignals: [
+          "Active opportunities continue progressing",
+          "Downstream pipeline depth increases",
+          "New interviews or later-stage opportunities emerge",
+        ],
+        confidence: decision.confidence,
+      };
+
+    case "Build recovery pipeline":
+      return {
+        strategy: "Establish sufficient qualified recovery pipeline",
+        objective:
+          "Create enough qualified opportunities to move the recovery process into active progression.",
+        approach: [
+          "Create new qualified application opportunities",
+          "Build relevant networking and referral paths",
+          "Prioritize opportunities with credible progression potential",
+        ],
+        guardrails: [
+          "Do not optimize for raw activity without qualified opportunity creation.",
+          "Balance application creation with relationship and progression paths.",
+        ],
+        successSignals: [
+          "Qualified opportunities enter the pipeline",
+          "The pipeline moves beyond a thin state",
+          "First downstream conversations or interviews emerge",
+        ],
+        confidence: decision.confidence,
+      };
+
+    default:
+      return {
+        strategy: "Maintain recovery momentum",
+        objective:
+          "Continue the recovery process while gathering enough evidence for the next strategic decision.",
+        approach: [
+          "Continue the highest-value recovery activities",
+          "Track meaningful pipeline changes",
+        ],
+        guardrails: [
+          "Avoid unnecessary expansion until the recovery signal becomes clearer.",
+        ],
+        successSignals: [
+          "A clearer downstream recovery signal emerges",
+        ],
+        confidence: "LOW",
+      };
+  }
 }
 
 export function getActions(
@@ -4330,6 +4558,18 @@ export function calculateRecovery(
     pipelineComposition
   );
 
+  const recoveryDecision = getRecoveryDecision(
+    input,
+    state,
+    runwayMonths,
+    recentProgression,
+    progressionSignal,
+    pipelineSignal,
+    pipelineComposition
+  );
+
+  const recoveryStrategy = getRecoveryStrategy(recoveryDecision);
+
   return {
     state,
     applicationActionEvents:
@@ -4354,15 +4594,8 @@ export function calculateRecovery(
       runwayMonths,
       pipelineSignal
     ),
-    recoveryDecision: getRecoveryDecision(
-      input,
-      state,
-      runwayMonths,
-      recentProgression,
-      progressionSignal,
-      pipelineSignal,
-      pipelineComposition
-    ),
+    recoveryDecision,
+    recoveryStrategy,
     actions: getActions(
       input,
       state,

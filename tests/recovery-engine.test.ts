@@ -6,6 +6,7 @@ import {
   getApplicationActionMemory,
   getActions,
   getRecoveryDecision,
+  getRecoveryStrategy,
   calculateRecovery,
   getPipelineHealth,
   getProgressionSignal,
@@ -3122,4 +3123,219 @@ test("recovery engine exposes the strategic recovery decision", () => {
     "Prioritize application conversion",
   );
   assert.equal(result.recoveryDecision.confidence, "HIGH");
+});
+
+test("recovery strategy completes the recovery transition", () => {
+  const strategy = getRecoveryStrategy({
+    decision: "Close out recovery",
+    objective: "Complete the transition",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH",
+  });
+
+  assert.equal(
+    strategy.strategy,
+    "Complete the recovery transition",
+  );
+  assert.equal(strategy.confidence, "HIGH");
+  assert.ok(strategy.approach.length > 0);
+  assert.ok(strategy.successSignals.length > 0);
+});
+
+test("recovery strategy converts an offer into completed employment", () => {
+  const strategy = getRecoveryStrategy({
+    decision: "Prioritize offer execution",
+    objective: "Convert the offer",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH",
+  });
+
+  assert.equal(
+    strategy.strategy,
+    "Convert the strongest offer opportunity into completed employment",
+  );
+  assert.equal(strategy.confidence, "HIGH");
+  assert.ok(strategy.guardrails.length > 0);
+});
+
+test("recovery strategy protects runway while preserving momentum", () => {
+  const strategy = getRecoveryStrategy({
+    decision: "Stabilize runway while maintaining recovery momentum",
+    objective: "Protect runway",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH",
+  });
+
+  assert.equal(
+    strategy.strategy,
+    "Protect runway while preserving the shortest viable recovery path",
+  );
+  assert.equal(strategy.confidence, "HIGH");
+  assert.ok(
+    strategy.guardrails.some((item) =>
+      item.includes("recovery opportunities"),
+    ),
+  );
+});
+
+test("recovery strategy concentrates effort on final-round execution", () => {
+  const strategy = getRecoveryStrategy({
+    decision: "Prioritize final-round progression",
+    objective: "Advance the final round",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH",
+  });
+
+  assert.equal(
+    strategy.strategy,
+    "Concentrate effort on final-round execution",
+  );
+  assert.equal(strategy.confidence, "HIGH");
+  assert.ok(strategy.approach.length >= 3);
+});
+
+test("recovery strategy converts interviews into late-stage opportunities", () => {
+  const strategy = getRecoveryStrategy({
+    decision: "Prioritize interview progression",
+    objective: "Advance interviews",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH",
+  });
+
+  assert.equal(
+    strategy.strategy,
+    "Convert active interviews into late-stage opportunities",
+  );
+  assert.equal(strategy.confidence, "HIGH");
+});
+
+test("recovery strategy replaces lost opportunity capacity", () => {
+  const strategy = getRecoveryStrategy({
+    decision: "Rebuild the recovery pipeline",
+    objective: "Replace lost pipeline",
+    evidence: [],
+    constraints: [],
+    confidence: "MEDIUM",
+  });
+
+  assert.equal(
+    strategy.strategy,
+    "Replace lost opportunity capacity",
+  );
+  assert.equal(strategy.confidence, "MEDIUM");
+  assert.ok(strategy.guardrails.length >= 2);
+});
+
+test("recovery strategy converts existing application volume", () => {
+  const strategy = getRecoveryStrategy({
+    decision: "Prioritize application conversion",
+    objective: "Improve conversion",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH",
+  });
+
+  assert.equal(
+    strategy.strategy,
+    "Convert existing application volume into conversations",
+  );
+  assert.equal(strategy.confidence, "HIGH");
+  assert.ok(
+    strategy.guardrails.some((item) =>
+      item.includes("application volume"),
+    ),
+  );
+});
+
+test("recovery strategy maintains qualified search activity", () => {
+  const strategy = getRecoveryStrategy({
+    decision: "Maintain active job search",
+    objective: "Maintain search",
+    evidence: [],
+    constraints: [],
+    confidence: "MEDIUM",
+  });
+
+  assert.equal(
+    strategy.strategy,
+    "Maintain qualified search activity while strengthening downstream depth",
+  );
+  assert.equal(strategy.confidence, "MEDIUM");
+});
+
+test("recovery strategy establishes sufficient qualified pipeline", () => {
+  const strategy = getRecoveryStrategy({
+    decision: "Build recovery pipeline",
+    objective: "Build pipeline",
+    evidence: [],
+    constraints: [],
+    confidence: "MEDIUM",
+  });
+
+  assert.equal(
+    strategy.strategy,
+    "Establish sufficient qualified recovery pipeline",
+  );
+  assert.equal(strategy.confidence, "MEDIUM");
+  assert.ok(strategy.successSignals.length >= 3);
+});
+
+test("recovery strategy falls back safely for an unknown decision", () => {
+  const strategy = getRecoveryStrategy({
+    decision: "Unknown decision",
+    objective: "Unknown",
+    evidence: [],
+    constraints: [],
+    confidence: "LOW",
+  });
+
+  assert.equal(
+    strategy.strategy,
+    "Maintain recovery momentum",
+  );
+  assert.equal(strategy.confidence, "LOW");
+  assert.ok(strategy.successSignals.length > 0);
+});
+
+test("recovery engine exposes the strategy derived from its recovery decision", () => {
+  const result = calculateRecovery(
+    actionInput({
+      recoveryTiming: "last month",
+      employmentStatus: "unemployed",
+      careerStage: "none",
+      applications: [
+        {
+          id: "app-1",
+          company: "Acme",
+          role: "Growth Manager",
+          stage: "applied",
+        },
+      ],
+    }),
+  );
+
+  assert.equal(
+    result.recoveryDecision.decision,
+    "Prioritize application conversion",
+  );
+
+  assert.equal(
+    result.recoveryStrategy.strategy,
+    "Convert existing application volume into conversations",
+  );
+
+  assert.equal(
+    result.recoveryStrategy.objective,
+    "Turn existing application activity into active conversations and downstream opportunities before materially increasing volume.",
+  );
+
+  assert.equal(result.recoveryStrategy.confidence, "HIGH");
+  assert.ok(result.recoveryStrategy.approach.length > 0);
+  assert.ok(result.recoveryStrategy.guardrails.length > 0);
+  assert.ok(result.recoveryStrategy.successSignals.length > 0);
 });
