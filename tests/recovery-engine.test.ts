@@ -3843,6 +3843,145 @@ test("execution actions preserve the execution plan sequence", () => {
 });
 
 
+test("learning-aware recalibration supports the current direction", () => {
+  const outcome = getRecoveryOutcome(
+    progression("Interview", "Final"),
+  );
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "ADVANCING",
+  );
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "ADVANCING",
+  );
+
+  const result = getRecoveryRecalibration(
+    "INTERVIEWING",
+    "ADVANCING",
+    {
+      decision: "Prioritize interview progression",
+      objective: "Advance the active interview",
+      evidence: [],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      strategy: "Convert interview into late-stage opportunity",
+      objective: "Advance the active interview",
+      approach: [],
+      guardrails: [],
+      successSignals: [],
+      confidence: "HIGH",
+    },
+    {
+      objective: "Advance the active interview",
+      sequence: [],
+      immediateAction: "Prepare for your next interview",
+      supportingActions: [],
+      avoidActions: [],
+      confidence: "HIGH",
+    },
+    [],
+    learning,
+  );
+
+  assert.equal(result.learningEffect, "SUPPORTS");
+});
+
+test("learning-aware recalibration challenges the direction after closure", () => {
+  const outcome = getRecoveryOutcome(
+    progression("Interview", "Rejected"),
+  );
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "CLOSED",
+  );
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "CLOSED",
+  );
+
+  const result = getRecoveryRecalibration(
+    "SEARCHING",
+    "CLOSED",
+    {
+      decision: "Rebuild the recovery pipeline",
+      objective: "Replace lost opportunity capacity",
+      evidence: [],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      strategy: "Replace lost opportunity capacity",
+      objective: "Rebuild qualified pipeline",
+      approach: [],
+      guardrails: [],
+      successSignals: [],
+      confidence: "HIGH",
+    },
+    {
+      objective: "Rebuild qualified pipeline",
+      sequence: [],
+      immediateAction: "Add a new target opportunity",
+      supportingActions: [],
+      avoidActions: [],
+      confidence: "HIGH",
+    },
+    [],
+    learning,
+  );
+
+  assert.equal(result.learningEffect, "CHALLENGES");
+});
+
+test("learning-aware recalibration remains insufficient with low-confidence learning", () => {
+  const outcome = getRecoveryOutcome(null);
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "NEUTRAL",
+  );
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "NEUTRAL",
+  );
+
+  const result = getRecoveryRecalibration(
+    "STABILIZING",
+    "NEUTRAL",
+    {
+      decision: "Continue current recovery direction",
+      objective: "Maintain recovery progress",
+      evidence: [],
+      constraints: [],
+      confidence: "LOW",
+    },
+    {
+      strategy: "Maintain current recovery direction",
+      objective: "Maintain recovery progress",
+      approach: [],
+      guardrails: [],
+      successSignals: [],
+      confidence: "LOW",
+    },
+    {
+      objective: "Maintain recovery progress",
+      sequence: [],
+      immediateAction: "Review this week's recovery plan",
+      supportingActions: [],
+      avoidActions: [],
+      confidence: "LOW",
+    },
+    [],
+    learning,
+  );
+
+  assert.equal(result.learningEffect, "INSUFFICIENT");
+});
+
 test("recovery recalibration reassesses after a setback", () => {
   const decision = {
     decision: "Rebuild the recovery pipeline",

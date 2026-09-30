@@ -171,6 +171,7 @@ export type RecoveryRecalibration = {
   signal: string;
   decisionStatus: "HOLD" | "REASSESS";
   strategyStatus: "HOLD" | "REASSESS";
+  learningEffect: "SUPPORTS" | "CHALLENGES" | "INSUFFICIENT";
   nextStep: string;
   rationale: string[];
   confidence: "HIGH" | "MEDIUM" | "LOW";
@@ -2796,6 +2797,13 @@ export function getRecoveryRecalibration(
   strategy: RecoveryStrategy,
   plan: RecoveryExecutionPlan,
   actions: RecoveryAction[],
+  learning: RecoveryLearning = {
+    pattern: "No material directional recovery pattern is visible.",
+    learning:
+      "The available outcome evidence is insufficient to establish a new recovery lesson.",
+    evidence: [],
+    confidence: "LOW",
+  },
 ): RecoveryRecalibration {
   const nextAction =
     plan.sequence
@@ -2806,12 +2814,21 @@ export function getRecoveryRecalibration(
 
   const nextStep = nextAction?.title ?? plan.immediateAction;
 
+  const learningEffect: RecoveryRecalibration["learningEffect"] =
+    learning.confidence === "LOW"
+      ? "INSUFFICIENT"
+      : progressionSignal === "SETBACK" ||
+          progressionSignal === "CLOSED"
+        ? "CHALLENGES"
+        : "SUPPORTS";
+
   if (state === "RECOVERED") {
     return {
       trigger: "Recovery state changed to recovered",
       signal: "Employment recovery is now operational.",
       decisionStatus: "HOLD",
       strategyStatus: "HOLD",
+      learningEffect,
       nextStep,
       rationale: [
         "The recovery decision remains aligned with the current recovered state.",
@@ -2833,6 +2850,7 @@ export function getRecoveryRecalibration(
           : "An active recovery opportunity was closed.",
       decisionStatus: "REASSESS",
       strategyStatus: "REASSESS",
+      learningEffect,
       nextStep,
       rationale: [
         "The latest pipeline signal changes the evidence supporting the current recovery direction.",
@@ -2848,6 +2866,7 @@ export function getRecoveryRecalibration(
       signal: "An active recovery opportunity is progressing.",
       decisionStatus: "HOLD",
       strategyStatus: "HOLD",
+      learningEffect,
       nextStep,
       rationale: [
         "The latest progression signal supports the current recovery direction.",
@@ -2862,6 +2881,7 @@ export function getRecoveryRecalibration(
     signal: "No material pipeline change requires a new recovery direction.",
     decisionStatus: "HOLD",
     strategyStatus: "HOLD",
+    learningEffect,
     nextStep,
     rationale: [
       "The current recovery decision remains supported by available evidence.",
@@ -2873,7 +2893,6 @@ export function getRecoveryRecalibration(
         : strategy.confidence,
   };
 }
-
 export function getExecutionActions(
   plan: RecoveryExecutionPlan,
   actions: RecoveryAction[],
@@ -5095,13 +5114,14 @@ export function calculateRecovery(
   );
 
   const recoveryRecalibration = getRecoveryRecalibration(
-  state,
-  progressionSignal,
-  recoveryDecision,
-  recoveryStrategy,
-  recoveryExecutionPlan,
-  actions
-);
+    state,
+    progressionSignal,
+    recoveryDecision,
+    recoveryStrategy,
+    recoveryExecutionPlan,
+    actions,
+    recoveryLearning,
+  );
 
   return {
     state,

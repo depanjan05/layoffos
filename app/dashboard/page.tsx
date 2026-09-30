@@ -64,6 +64,7 @@ type RecoveryEngineResult = {
       | "INTERVIEWS"
       | "DIRECTION";
   };
+
   actionEffect: {
     status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
     headline: string;
@@ -181,6 +182,7 @@ type RecoveryEngineResult = {
     signal: string;
     decisionStatus: "HOLD" | "REASSESS";
     strategyStatus: "HOLD" | "REASSESS";
+    learningEffect: "SUPPORTS" | "CHALLENGES" | "INSUFFICIENT";
     nextStep: string;
     rationale: string[];
     confidence: "HIGH" | "MEDIUM" | "LOW";
@@ -1969,6 +1971,26 @@ export default function DashboardPage() {
                       {recoveryEngine.outcomeIntelligence.direction}
                     </p>
                   </div>
+                </div>
+
+                <div className="mt-5 rounded-xl border border-[#deded8] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                    Learning effect
+                  </p>
+
+                  <p className="mt-2 text-sm font-bold text-[#111]">
+                    {recoveryEngine.recoveryRecalibration.learningEffect}
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                    {recoveryEngine.recoveryRecalibration.learningEffect ===
+                    "SUPPORTS"
+                      ? "Recent recovery learning supports the current direction."
+                      : recoveryEngine.recoveryRecalibration.learningEffect ===
+                          "CHALLENGES"
+                        ? "Recent recovery learning challenges the current direction."
+                        : "Current learning evidence is insufficient to change direction."}
+                  </p>
                 </div>
 
                 <div className="mt-5 grid gap-5 border-t border-[#deded8] pt-5 md:grid-cols-2">
