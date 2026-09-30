@@ -4913,3 +4913,114 @@ test("direction-aware recovery decision preserves fallback logic for continue", 
 
   assert.notEqual(decision.decision, "");
 });
+
+
+test("action-aware recovery direction shifts after negative action effect", () => {
+  const direction = getRecoveryDirection(
+    "INTERVIEWING",
+    "ADVANCING",
+    {
+      direction: "POSITIVE",
+      impact: "MEDIUM",
+      implication:
+        "The latest outcome supports the current recovery direction and provides evidence to continue execution.",
+      evidence: ["Interview progressed before the action feedback was evaluated."],
+    },
+    {
+      pattern: "Meaningful recovery progression is being generated.",
+      learning:
+        "The current recovery approach is producing evidence of downstream movement. Preserve the direction while continuing execution.",
+      evidence: [],
+      confidence: "HIGH",
+    },
+    undefined,
+    {
+      status: "NEGATIVE",
+      headline: "Recovery action produced negative evidence",
+      summary:
+        "The completed action was followed by a setback signal.",
+      evidence: [
+        "Action: Send targeted follow-up",
+        "Progression: Interview → Rejected",
+      ],
+      recommendation:
+        "Change the approach before repeating the action.",
+    },
+  );
+
+  assert.equal(direction.direction, "SHIFT");
+  assert.equal(direction.source, "SETBACK");
+  assert.equal(direction.confidence, "HIGH");
+});
+
+test("action-aware recovery direction preserves positive advancement", () => {
+  const direction = getRecoveryDirection(
+    "FINAL_ROUND",
+    "ADVANCING",
+    {
+      direction: "POSITIVE",
+      impact: "MEDIUM",
+      implication:
+        "The latest outcome supports the current recovery direction and provides evidence to continue execution.",
+      evidence: ["Final-round progression was recorded."],
+    },
+    {
+      pattern: "Meaningful recovery progression is being generated.",
+      learning:
+        "The current recovery approach is producing evidence of downstream movement. Preserve the direction while continuing execution.",
+      evidence: [],
+      confidence: "HIGH",
+    },
+    undefined,
+    {
+      status: "POSITIVE",
+      headline: "Recovery action produced positive evidence",
+      summary:
+        "The completed action was followed by progression.",
+      evidence: [
+        "Action: Send final-round follow-up",
+        "Progression: Final Round → Offer",
+      ],
+      recommendation:
+        "Continue the action pattern while protecting the active opportunity.",
+    },
+  );
+
+  assert.equal(direction.direction, "INTENSIFY");
+  assert.equal(direction.source, "ADVANCEMENT");
+});
+
+test("action-aware recovery direction preserves direction with insufficient action evidence", () => {
+  const direction = getRecoveryDirection(
+    "SEARCHING",
+    "NEUTRAL",
+    {
+      direction: "NEUTRAL",
+      impact: "LOW",
+      implication:
+        "The latest outcome does not provide enough directional evidence to change the current recovery approach.",
+      evidence: [],
+    },
+    {
+      pattern: "No material directional recovery pattern is visible.",
+      learning:
+        "The available outcome evidence is insufficient to establish a new recovery lesson.",
+      evidence: [],
+      confidence: "LOW",
+    },
+    undefined,
+    {
+      status: "UNKNOWN",
+      headline: "No completed recovery action to evaluate",
+      summary:
+        "The system does not yet have a completed recovery action with a usable timestamp to compare against pipeline movement.",
+      evidence: [],
+      recommendation:
+        "Complete a recommended recovery action and track what happens next.",
+    },
+  );
+
+  assert.equal(direction.direction, "CONTINUE");
+  assert.equal(direction.source, "INSUFFICIENT");
+  assert.equal(direction.confidence, "LOW");
+});

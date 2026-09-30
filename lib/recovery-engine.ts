@@ -5204,6 +5204,13 @@ export function getRecoveryDirection(
   outcomeIntelligence: RecoveryOutcomeIntelligence,
   learning: RecoveryLearning,
   recalibration?: RecoveryRecalibration,
+  actionEffect: RecoveryActionEffect = {
+    status: "UNKNOWN",
+    headline: "",
+    summary: "",
+    evidence: [],
+    recommendation: "",
+  },
 ): RecoveryDirection {
   if (state === "RECOVERED") {
     return {
@@ -5245,6 +5252,17 @@ export function getRecoveryDirection(
         outcomeIntelligence.impact === "HIGH"
           ? "HIGH"
           : "MEDIUM",
+    };
+  }
+
+  if (actionEffect.status === "NEGATIVE") {
+    return {
+      direction: "SHIFT",
+      rationale:
+        "The latest completed recovery action was followed by negative evidence, so the recovery approach should change before repeating the same action or increasing activity.",
+      evidence: actionEffect.evidence,
+      source: "SETBACK",
+      confidence: "HIGH",
     };
   }
 
@@ -5399,6 +5417,8 @@ export function calculateRecovery(
     progressionSignal,
     outcomeIntelligence,
     recoveryLearning,
+    undefined,
+    actionEffect,
   );
 
   const recoveryDecision = getRecoveryDecision(
