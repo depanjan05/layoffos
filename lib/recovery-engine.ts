@@ -196,6 +196,17 @@ export type RecoveryDirection = {
   confidence: "HIGH" | "MEDIUM" | "LOW";
 };
 
+export type RecoveryDirectionMemory = {
+  changed: boolean;
+  previousDirection: RecoveryDirection["direction"] | null;
+  currentDirection: RecoveryDirection["direction"];
+  source: RecoveryDirection["source"];
+  rationale: string;
+  evidence: string[];
+  confidence: RecoveryDirection["confidence"];
+};
+
+
 export type RecoveryActionEffect = {
   status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
   headline: string;
@@ -306,6 +317,7 @@ export type RecoveryEngineInput = {
     href?: string | null;
     completedAt?: string | null;
   }>;
+  previousRecoveryDirection?: RecoveryDirection["direction"] | null;
 };
 
 export type RecentProgression = {
@@ -972,6 +984,7 @@ export type RecoveryEngineResult = {
   executionActions: RecoveryExecutionAction[];
   recoveryRecalibration: RecoveryRecalibration;
   recoveryDirection: RecoveryDirection;
+  recoveryDirectionMemory: RecoveryDirectionMemory;
   actions: RecoveryAction[];
   transition: RecoveryTransition;
   recentProgression: RecentProgression | null;
@@ -5315,6 +5328,27 @@ export function getRecoveryDirection(
   };
 }
 
+export function getRecoveryDirectionMemory(
+  previousDirection: RecoveryDirection["direction"] | null,
+  currentDirection: RecoveryDirection,
+): RecoveryDirectionMemory {
+  const changed =
+    previousDirection !== null &&
+    previousDirection !== currentDirection.direction;
+
+  return {
+    changed,
+    previousDirection,
+    currentDirection: currentDirection.direction,
+    source: currentDirection.source,
+    rationale: changed
+      ? currentDirection.rationale
+      : "The recovery direction has not changed from the available previous direction.",
+    evidence: currentDirection.evidence,
+    confidence: currentDirection.confidence,
+  };
+}
+
 export function calculateRecovery(
   input: RecoveryEngineInput
 ): RecoveryEngineResult {
@@ -5421,6 +5455,12 @@ export function calculateRecovery(
     actionEffect,
   );
 
+  const recoveryDirectionMemory = getRecoveryDirectionMemory(
+    input.previousRecoveryDirection ?? null,
+    recoveryDirection,
+  );
+
+
   const recoveryDecision = getRecoveryDecision(
     input,
     state,
@@ -5502,6 +5542,7 @@ export function calculateRecovery(
     executionActions,
     recoveryRecalibration,
     recoveryDirection,
+    recoveryDirectionMemory,
     actions,
     transition: getTransition(input, state),
     recentProgression,

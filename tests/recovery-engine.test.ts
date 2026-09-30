@@ -11,6 +11,7 @@ import {
   getRecoveryExecutionPlan,
   getRecoveryRecalibration,
   getRecoveryDirection,
+  getRecoveryDirectionMemory,
   calculateRecovery,
   getPipelineHealth,
   getProgressionSignal,
@@ -4365,6 +4366,100 @@ test("recovery recalibration holds after recovery", () => {
   assert.match(recalibration.trigger, /recovered/i);
 });
 
+
+test("direction memory records a meaningful direction change", () => {
+  const direction = getRecoveryDirection(
+    "INTERVIEWING",
+    "SETBACK",
+    {
+      direction: "NEGATIVE",
+      impact: "MEDIUM",
+      implication:
+        "The latest outcome weakens the evidence supporting the current recovery direction.",
+      evidence: ["The active opportunity moved backward."],
+    },
+    {
+      pattern: "Recovery progression weakened or moved backward.",
+      learning:
+        "The latest recovery evidence weakens the current direction. Treat the signal as learning before expanding the same activity.",
+      evidence: ["The active opportunity moved backward."],
+      confidence: "HIGH",
+    },
+    undefined,
+    {
+      status: "NEGATIVE",
+      headline: "Recovery action produced negative evidence",
+      summary: "The completed action was followed by a setback signal.",
+      evidence: ["Action: Follow up", "Progression: Interview → Rejected"],
+      recommendation: "Change the approach before repeating the action.",
+    },
+  );
+
+  const memory = getRecoveryDirectionMemory("CONTINUE", direction);
+
+  assert.equal(memory.changed, true);
+  assert.equal(memory.previousDirection, "CONTINUE");
+  assert.equal(memory.currentDirection, "SHIFT");
+  assert.equal(memory.source, "SETBACK");
+  assert.equal(memory.confidence, "HIGH");
+  assert.deepEqual(memory.evidence, direction.evidence);
+});
+
+test("direction memory stays unchanged when direction is preserved", () => {
+  const direction = getRecoveryDirection(
+    "SEARCHING",
+    "NEUTRAL",
+    {
+      direction: "NEUTRAL",
+      impact: "LOW",
+      implication:
+        "The latest outcome does not provide enough directional evidence to change the current recovery approach.",
+      evidence: [],
+    },
+    {
+      pattern: "No material directional recovery pattern is visible.",
+      learning:
+        "The available outcome evidence is insufficient to establish a new recovery lesson.",
+      evidence: [],
+      confidence: "LOW",
+    },
+  );
+
+  const memory = getRecoveryDirectionMemory("CONTINUE", direction);
+
+  assert.equal(memory.changed, false);
+  assert.equal(memory.previousDirection, "CONTINUE");
+  assert.equal(memory.currentDirection, "CONTINUE");
+  assert.equal(memory.confidence, "LOW");
+});
+
+test("direction memory does not invent a change without previous direction", () => {
+  const direction = getRecoveryDirection(
+    "RECOVERED",
+    "ADVANCING",
+    {
+      direction: "POSITIVE",
+      impact: "MEDIUM",
+      implication:
+        "The latest outcome supports the current recovery direction and provides evidence to continue execution.",
+      evidence: [],
+    },
+    {
+      pattern: "Meaningful recovery progression is being generated.",
+      learning:
+        "The current recovery approach is producing evidence of downstream movement. Preserve the direction while continuing execution.",
+      evidence: [],
+      confidence: "HIGH",
+    },
+  );
+
+  const memory = getRecoveryDirectionMemory(null, direction);
+
+  assert.equal(memory.changed, false);
+  assert.equal(memory.previousDirection, null);
+  assert.equal(memory.currentDirection, "CLOSEOUT");
+  assert.equal(memory.source, "RECOVERY");
+});
 
 test("recovery direction closes out recovered employment", () => {
   const outcome = getRecoveryOutcome(
