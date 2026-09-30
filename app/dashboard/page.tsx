@@ -188,6 +188,24 @@ type RecoveryEngineResult = {
     confidence: "HIGH" | "MEDIUM" | "LOW";
   };
 
+  recoveryDirection: {
+    direction:
+      | "CONTINUE"
+      | "INTENSIFY"
+      | "SHIFT"
+      | "REBUILD"
+      | "CLOSEOUT";
+    rationale: string;
+    evidence: string[];
+    source:
+      | "RECOVERY"
+      | "ADVANCEMENT"
+      | "SETBACK"
+      | "CLOSURE"
+      | "INSUFFICIENT";
+    confidence: "HIGH" | "MEDIUM" | "LOW";
+  };
+
 
   actions: {
     title: string;

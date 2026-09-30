@@ -10,6 +10,7 @@ import {
   getRecoveryStrategy,
   getRecoveryExecutionPlan,
   getRecoveryRecalibration,
+  getRecoveryDirection,
   calculateRecovery,
   getPipelineHealth,
   getProgressionSignal,
@@ -4120,4 +4121,284 @@ test("recovery recalibration holds after recovery", () => {
   assert.equal(recalibration.decisionStatus, "HOLD");
   assert.equal(recalibration.strategyStatus, "HOLD");
   assert.match(recalibration.trigger, /recovered/i);
+});
+
+
+test("recovery direction closes out recovered employment", () => {
+  const outcome = getRecoveryOutcome(
+    progression("Final", "Offer"),
+  );
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "ADVANCING",
+  );
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "ADVANCING",
+  );
+
+  const recalibration = getRecoveryRecalibration(
+    "RECOVERED",
+    "ADVANCING",
+    {
+      decision: "Complete recovery transition",
+      objective: "Close out employment recovery",
+      evidence: [],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      strategy: "Complete recovery transition",
+      objective: "Close out employment recovery",
+      approach: [],
+      guardrails: [],
+      successSignals: [],
+      confidence: "HIGH",
+    },
+    {
+      objective: "Close out employment recovery",
+      sequence: [],
+      immediateAction: "Confirm your accepted offer details",
+      supportingActions: [],
+      avoidActions: [],
+      confidence: "HIGH",
+    },
+    [],
+    learning,
+  );
+
+  const result = getRecoveryDirection(
+    "RECOVERED",
+    "ADVANCING",
+    intelligence,
+    learning,
+    recalibration,
+  );
+
+  assert.equal(result.direction, "CLOSEOUT");
+  assert.equal(result.source, "RECOVERY");
+});
+
+test("recovery direction intensifies supported late-stage advancement", () => {
+  const outcome = getRecoveryOutcome(
+    progression("Interview", "Final"),
+  );
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "ADVANCING",
+  );
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "ADVANCING",
+  );
+
+  const recalibration = getRecoveryRecalibration(
+    "FINAL_ROUND",
+    "ADVANCING",
+    {
+      decision: "Prioritize final-round progression",
+      objective: "Advance the final round",
+      evidence: [],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      strategy: "Concentrate effort on final-round execution",
+      objective: "Advance the final round",
+      approach: [],
+      guardrails: [],
+      successSignals: [],
+      confidence: "HIGH",
+    },
+    {
+      objective: "Advance the final round",
+      sequence: [],
+      immediateAction: "Prepare your final-round talking points",
+      supportingActions: [],
+      avoidActions: [],
+      confidence: "HIGH",
+    },
+    [],
+    learning,
+  );
+
+  const result = getRecoveryDirection(
+    "FINAL_ROUND",
+    "ADVANCING",
+    intelligence,
+    learning,
+    recalibration,
+  );
+
+  assert.equal(result.direction, "INTENSIFY");
+  assert.equal(result.source, "ADVANCEMENT");
+});
+
+test("recovery direction shifts after a setback", () => {
+  const outcome = getRecoveryOutcome(
+    progression("Interview", "Rejected"),
+  );
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "SETBACK",
+  );
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "SETBACK",
+  );
+
+  const recalibration = getRecoveryRecalibration(
+    "INTERVIEWING",
+    "SETBACK",
+    {
+      decision: "Rebuild the recovery pipeline",
+      objective: "Replace lost opportunity capacity",
+      evidence: [],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      strategy: "Replace lost opportunity capacity",
+      objective: "Rebuild qualified pipeline",
+      approach: [],
+      guardrails: [],
+      successSignals: [],
+      confidence: "HIGH",
+    },
+    {
+      objective: "Rebuild qualified pipeline",
+      sequence: [],
+      immediateAction: "Add a new target opportunity",
+      supportingActions: [],
+      avoidActions: [],
+      confidence: "HIGH",
+    },
+    [],
+    learning,
+  );
+
+  const result = getRecoveryDirection(
+    "INTERVIEWING",
+    "SETBACK",
+    intelligence,
+    learning,
+    recalibration,
+  );
+
+  assert.equal(result.direction, "SHIFT");
+  assert.equal(result.source, "SETBACK");
+});
+
+test("recovery direction rebuilds after opportunity closure", () => {
+  const outcome = getRecoveryOutcome(
+    progression("Interview", "Rejected"),
+  );
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "CLOSED",
+  );
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "CLOSED",
+  );
+
+  const recalibration = getRecoveryRecalibration(
+    "SEARCHING",
+    "CLOSED",
+    {
+      decision: "Rebuild the recovery pipeline",
+      objective: "Replace lost opportunity capacity",
+      evidence: [],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      strategy: "Replace lost opportunity capacity",
+      objective: "Rebuild qualified pipeline",
+      approach: [],
+      guardrails: [],
+      successSignals: [],
+      confidence: "HIGH",
+    },
+    {
+      objective: "Rebuild qualified pipeline",
+      sequence: [],
+      immediateAction: "Add a new target opportunity",
+      supportingActions: [],
+      avoidActions: [],
+      confidence: "HIGH",
+    },
+    [],
+    learning,
+  );
+
+  const result = getRecoveryDirection(
+    "SEARCHING",
+    "CLOSED",
+    intelligence,
+    learning,
+    recalibration,
+  );
+
+  assert.equal(result.direction, "REBUILD");
+  assert.equal(result.source, "CLOSURE");
+});
+
+test("recovery direction continues when evidence is insufficient", () => {
+  const outcome = getRecoveryOutcome(null);
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "NEUTRAL",
+  );
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "NEUTRAL",
+  );
+
+  const recalibration = getRecoveryRecalibration(
+    "STABILIZING",
+    "NEUTRAL",
+    {
+      decision: "Continue current recovery direction",
+      objective: "Maintain recovery progress",
+      evidence: [],
+      constraints: [],
+      confidence: "LOW",
+    },
+    {
+      strategy: "Maintain current recovery direction",
+      objective: "Maintain recovery progress",
+      approach: [],
+      guardrails: [],
+      successSignals: [],
+      confidence: "LOW",
+    },
+    {
+      objective: "Maintain recovery progress",
+      sequence: [],
+      immediateAction: "Review this week's recovery plan",
+      supportingActions: [],
+      avoidActions: [],
+      confidence: "LOW",
+    },
+    [],
+    learning,
+  );
+
+  const result = getRecoveryDirection(
+    "STABILIZING",
+    "NEUTRAL",
+    intelligence,
+    learning,
+    recalibration,
+  );
+
+  assert.equal(result.direction, "CONTINUE");
+  assert.equal(result.source, "INSUFFICIENT");
+  assert.equal(result.confidence, "LOW");
 });

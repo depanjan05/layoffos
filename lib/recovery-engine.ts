@@ -177,6 +177,24 @@ export type RecoveryRecalibration = {
   confidence: "HIGH" | "MEDIUM" | "LOW";
 };
 
+export type RecoveryDirection = {
+  direction:
+    | "CONTINUE"
+    | "INTENSIFY"
+    | "SHIFT"
+    | "REBUILD"
+    | "CLOSEOUT";
+  rationale: string;
+  evidence: string[];
+  source:
+    | "RECOVERY"
+    | "ADVANCEMENT"
+    | "SETBACK"
+    | "CLOSURE"
+    | "INSUFFICIENT";
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+};
+
 export type RecoveryActionEffect = {
   status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
   headline: string;
@@ -952,6 +970,7 @@ export type RecoveryEngineResult = {
   recoveryExecutionPlan: RecoveryExecutionPlan;
   executionActions: RecoveryExecutionAction[];
   recoveryRecalibration: RecoveryRecalibration;
+  recoveryDirection: RecoveryDirection;
   actions: RecoveryAction[];
   transition: RecoveryTransition;
   recentProgression: RecentProgression | null;
@@ -4984,6 +5003,107 @@ function getRecentProgression(
   return null;
 }
 
+export function getRecoveryDirection(
+  state: RecoveryState,
+  progressionSignal: string,
+  outcomeIntelligence: RecoveryOutcomeIntelligence,
+  learning: RecoveryLearning,
+  recalibration: RecoveryRecalibration,
+): RecoveryDirection {
+  if (state === "RECOVERED") {
+    return {
+      direction: "CLOSEOUT",
+      rationale:
+        "Employment recovery is operational, so the recovery system should transition from search activity to closeout and stabilization.",
+      evidence: [
+        "Recovery state is RECOVERED.",
+        "The active recovery loop no longer requires pipeline expansion.",
+      ],
+      source: "RECOVERY",
+      confidence: "HIGH",
+    };
+  }
+
+  if (progressionSignal === "CLOSED") {
+    return {
+      direction: "REBUILD",
+      rationale:
+        "The latest recovery opportunity closed, reducing available pipeline capacity and requiring replacement recovery capacity.",
+      evidence: outcomeIntelligence.evidence,
+      source: "CLOSURE",
+      confidence: "HIGH",
+    };
+  }
+
+  if (progressionSignal === "SETBACK") {
+    return {
+      direction: "SHIFT",
+      rationale:
+        "The latest recovery evidence weakened the current path, so the system should change direction before repeating the same pattern at greater volume.",
+      evidence: [
+        ...outcomeIntelligence.evidence,
+        learning.learning,
+      ],
+      source: "SETBACK",
+      confidence:
+        recalibration.learningEffect === "CHALLENGES"
+          ? "HIGH"
+          : outcomeIntelligence.impact === "HIGH"
+            ? "HIGH"
+            : "MEDIUM",
+    };
+  }
+
+  if (progressionSignal === "ADVANCING") {
+    const lateStageState =
+      state === "INTERVIEWING" ||
+      state === "FINAL_ROUND" ||
+      state === "OFFER";
+
+    if (
+      lateStageState &&
+      recalibration.learningEffect === "SUPPORTS" &&
+      learning.confidence !== "LOW"
+    ) {
+      return {
+        direction: "INTENSIFY",
+        rationale:
+          "The recovery pipeline is progressing and the latest learning supports the current path, so effort should concentrate on converting the active opportunity.",
+        evidence: [
+          ...outcomeIntelligence.evidence,
+          learning.learning,
+        ],
+        source: "ADVANCEMENT",
+        confidence: learning.confidence,
+      };
+    }
+
+    return {
+      direction: "CONTINUE",
+      rationale:
+        "The latest recovery evidence supports the current direction, so execution should continue without introducing a new recovery path.",
+      evidence: [
+        ...outcomeIntelligence.evidence,
+        learning.learning,
+      ],
+      source: "ADVANCEMENT",
+      confidence:
+        learning.confidence === "LOW"
+          ? "MEDIUM"
+          : learning.confidence,
+    };
+  }
+
+  return {
+    direction: "CONTINUE",
+    rationale:
+      "The available recovery evidence is insufficient to justify a directional change, so the current recovery path should continue until a stronger signal appears.",
+    evidence: learning.evidence,
+    source: "INSUFFICIENT",
+    confidence: "LOW",
+  };
+}
+
 export function calculateRecovery(
   input: RecoveryEngineInput
 ): RecoveryEngineResult {
@@ -5123,6 +5243,14 @@ export function calculateRecovery(
     recoveryLearning,
   );
 
+  const recoveryDirection = getRecoveryDirection(
+    state,
+    progressionSignal,
+    outcomeIntelligence,
+    recoveryLearning,
+    recoveryRecalibration,
+  );
+
   return {
     state,
     applicationActionEvents:
@@ -5154,6 +5282,7 @@ export function calculateRecovery(
     recoveryExecutionPlan,
     executionActions,
     recoveryRecalibration,
+    recoveryDirection,
     actions,
     transition: getTransition(input, state),
     recentProgression,
