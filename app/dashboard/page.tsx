@@ -147,6 +147,23 @@ type RecoveryEngineResult = {
     confidence: "HIGH" | "MEDIUM" | "LOW";
   };
 
+  executionActions: {
+    step: string;
+    action: {
+      title: string;
+      reason: string;
+      href: string;
+      priority: string;
+      evidence?: string;
+      explanation?: {
+        why: string;
+        signals: string[];
+        decision: string;
+      };
+      decisionTrace?: unknown;
+    } | null;
+  }[];
+
   actions: {
     title: string;
     reason: string;
@@ -1524,16 +1541,74 @@ export default function DashboardPage() {
                       Execution sequence
                     </p>
                     <ol className="mt-4 space-y-3">
-                      {recoveryEngine.recoveryExecutionPlan.sequence.map((step, index) => (
-                        <li key={`${index}-${step}`} className="flex items-start gap-4">
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eaeae4] text-xs font-bold text-[#33332e]">
-                            {String(index + 1).padStart(2, "0")}
-                          </span>
-                          <p className="pt-1 text-sm leading-6 text-[#33332e]">
-                            {step}
-                          </p>
-                        </li>
-                      ))}
+                      {recoveryEngine.recoveryExecutionPlan.sequence.map((step, index) => {
+                        const executionAction =
+                          recoveryEngine.executionActions?.[index]?.action ?? null;
+
+                        return (
+                          <li
+                            key={`${index}-${step}`}
+                            className="rounded-2xl border border-[#deded8] bg-white p-4"
+                          >
+                            <div className="flex items-start gap-4">
+                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eaeae4] text-xs font-bold text-[#33332e]">
+                                {String(index + 1).padStart(2, "0")}
+                              </span>
+
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold leading-6 text-[#22221f]">
+                                  {step}
+                                </p>
+
+                                {executionAction ? (
+                                  <div className="mt-3 rounded-xl bg-[#f5f5f0] p-3">
+                                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#888880]">
+                                      Recommended action
+                                    </p>
+                                    <p className="mt-1 text-sm font-semibold leading-5 text-[#33332e]">
+                                      {executionAction.title}
+                                    </p>
+                                    <p className="mt-1 text-xs leading-5 text-[#66665f]">
+                                      {executionAction.reason}
+                                    </p>
+
+                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                      <a
+                                        href={executionAction.href}
+                                        className="inline-flex items-center rounded-lg bg-[#171714] px-3 py-2 text-xs font-bold text-white transition-opacity hover:opacity-85"
+                                      >
+                                        Open action
+                                      </a>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          completeRecoveryAction(
+                                            executionAction as typeof recoveryEngine.actions[number]
+                                          )
+                                        }
+                                        disabled={
+                                          completingRecoveryAction ===
+                                          executionAction.title
+                                        }
+                                        className="inline-flex items-center rounded-lg border border-[#cfcfc7] bg-white px-3 py-2 text-xs font-bold text-[#33332e] transition-colors hover:bg-[#f3f3ee] disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        {completingRecoveryAction ===
+                                        executionAction.title
+                                          ? "Completing..."
+                                          : "Mark complete"}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="mt-2 text-xs leading-5 text-[#888880]">
+                                    No direct action currently available.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ol>
                   </div>
 

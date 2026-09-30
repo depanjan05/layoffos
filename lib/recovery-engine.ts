@@ -931,6 +931,7 @@ export type RecoveryEngineResult = {
   recoveryDecision: RecoveryDecision;
   recoveryStrategy: RecoveryStrategy;
   recoveryExecutionPlan: RecoveryExecutionPlan;
+  executionActions: RecoveryExecutionAction[];
   actions: RecoveryAction[];
   transition: RecoveryTransition;
   recentProgression: RecentProgression | null;
@@ -2587,6 +2588,155 @@ export function getRecoveryExecutionPlan(
         confidence: "LOW",
       };
   }
+}
+
+export type RecoveryExecutionAction = {
+  step: string;
+  action: RecoveryAction | null;
+};
+
+const EXECUTION_ACTION_MAP: Record<string, string[]> = {
+  "Complete outstanding transition steps": [
+    "Confirm your accepted offer details",
+    "Review your recovery data",
+  ],
+  "Confirm the employment transition is fully operational": [
+    "Confirm your accepted offer details",
+    "Review your recovery data",
+  ],
+  "Protect the financial and professional gains created by the recovery": [
+    "Review your financial position",
+    "Review your financial runway",
+  ],
+
+  "Complete outstanding offer and decision steps": [
+    "Review your offer pipeline",
+    "Review your active offer",
+    "Confirm your accepted offer details",
+  ],
+  "Resolve open questions or blockers on the active offer": [
+    "Review your active offer",
+    "Review compensation and decision dates",
+  ],
+  "Maintain appropriate backup coverage until the transition is secure": [
+    "Keep one backup opportunity moving",
+  ],
+
+  "Protect immediate financial runway": [
+    "Review your financial position",
+    "Review your financial runway",
+    "Confirm your financial runway",
+  ],
+  "Prioritize active opportunities with the shortest path to progression": [
+    "Review your active application pipeline",
+    "Advance an active interview",
+    "Review your active offer",
+  ],
+  "Continue only recovery activities that preserve meaningful momentum": [
+    "Review this week's recovery plan",
+  ],
+
+  "Prepare specifically for the final-round requirements": [
+    "Prepare your final-round talking points",
+  ],
+  "Complete targeted follow-up with the opportunity": [
+    "Send your final-round follow-up",
+    "Review your interview follow-ups",
+    "Track your interview follow-up",
+    "Plan your final-round follow-up",
+  ],
+  "Remove avoidable blockers between final round and offer": [
+    "Confirm final-round logistics",
+    "Review your interview follow-ups",
+  ],
+
+  "Prepare for the next interview stage": [
+    "Prepare for your next interview",
+  ],
+  "Follow up on active interview opportunities": [
+    "Review your interview follow-ups",
+    "Track your interview follow-up",
+    "Advance an active interview",
+  ],
+  "Prioritize opportunities showing meaningful progression signals": [
+    "Advance an active interview",
+    "Review your active application pipeline",
+  ],
+
+  "Replace recently lost opportunity capacity": [
+    "Identify 3 replacement target roles",
+    "Add a new target opportunity",
+  ],
+  "Rebuild qualified applications and conversations": [
+    "Add a new target opportunity",
+    "Convert applications into conversations",
+  ],
+  "Learn from the latest pipeline change when selecting replacement opportunities": [
+    "Review what changed in the closed opportunity",
+  ],
+
+  "Follow up on the strongest existing applications": [
+    "Review your active application pipeline",
+    "Convert applications into conversations",
+  ],
+  "Identify applications that can be converted into conversations": [
+    "Convert applications into conversations",
+  ],
+  "Use relevant warm or human touchpoints where available": [
+    "Follow up with an active network contact",
+    "Review your active network",
+    "Reopen a warm referral path",
+  ],
+
+  "Continue qualified applications": [
+    "Review your active application pipeline",
+    "Add your first target application",
+    "Add a new target opportunity",
+  ],
+  "Strengthen downstream opportunities from the existing pipeline": [
+    "Review your active application pipeline",
+    "Advance an active interview",
+    "Review your active network",
+  ],
+  "Monitor progression rather than optimizing for application count alone": [
+    "Review this week's recovery plan",
+  ],
+
+  "Create new qualified application opportunities": [
+    "Add a new target opportunity",
+    "Add your first target application",
+  ],
+  "Build relevant networking and referral paths": [
+    "Create a new networking path",
+    "Start a referral conversation",
+    "Reopen a warm referral path",
+  ],
+  "Prioritize opportunities with credible progression potential": [
+    "Review your active application pipeline",
+    "Add a new target opportunity",
+  ],
+};
+
+export function getExecutionActions(
+  plan: RecoveryExecutionPlan,
+  actions: RecoveryAction[],
+): RecoveryExecutionAction[] {
+  return plan.sequence.map((step) => {
+    const candidates = EXECUTION_ACTION_MAP[step] ?? [];
+
+    const action =
+      candidates
+        .map((title) =>
+          actions.find((candidate) => candidate.title === title) ?? null
+        )
+        .find((candidate): candidate is RecoveryAction => candidate !== null) ??
+      null;
+
+    return {
+      step,
+      action,
+    };
+  });
 }
 
 export function getActions(
@@ -4799,6 +4949,21 @@ export function calculateRecovery(
     recoveryStrategy
   );
 
+  const actions = getActions(
+    input,
+    state,
+    runwayMonths,
+    recentProgression,
+    progressionSignal,
+    pipelineSignal,
+    pipelineComposition
+  );
+
+  const executionActions = getExecutionActions(
+    recoveryExecutionPlan,
+    actions
+  );
+
   return {
     state,
     applicationActionEvents:
@@ -4826,15 +4991,8 @@ export function calculateRecovery(
     recoveryDecision,
     recoveryStrategy,
     recoveryExecutionPlan,
-    actions: getActions(
-      input,
-      state,
-      runwayMonths,
-      recentProgression,
-      progressionSignal,
-      pipelineSignal,
-      pipelineComposition
-    ),
+    executionActions,
+    actions,
     transition: getTransition(input, state),
     recentProgression,
     pipelineSignal,

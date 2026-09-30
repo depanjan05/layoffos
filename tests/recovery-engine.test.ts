@@ -5,6 +5,7 @@ import {
   getActionMemory,
   getApplicationActionMemory,
   getActions,
+  getExecutionActions,
   getRecoveryDecision,
   getRecoveryStrategy,
   getRecoveryExecutionPlan,
@@ -3600,4 +3601,130 @@ test("recovery execution plan falls back safely for an unknown decision", () => 
   assert.equal(plan.sequence.length, 2);
   assert.ok(plan.supportingActions.length > 0);
   assert.equal(plan.confidence, "LOW");
+});
+
+
+test("execution actions map plan steps to existing recovery actions", () => {
+  const input: RecoveryEngineInput = {
+    applications: [
+      {
+        id: "application-1",
+        company: "Test Company",
+        role: "Test Role",
+        stage: "Interview",
+      },
+    ],
+    interviews: [
+      {
+        id: "interview-1",
+        company: "Test Company",
+        role: "Test Role",
+        stage: "Interview",
+      },
+    ],
+  };
+
+  const recovery = calculateRecovery(input);
+
+  const executionActions = recovery.executionActions;
+
+  assert.ok(executionActions.length > 0);
+  assert.equal(
+    executionActions.length,
+    recovery.recoveryExecutionPlan.sequence.length,
+  );
+
+  const mappedActions = executionActions.filter(
+    (item) => item.action !== null,
+  );
+
+  assert.ok(mappedActions.length > 0);
+
+  for (const item of mappedActions) {
+    assert.ok(item.action);
+    assert.ok(
+      recovery.actions.some(
+        (action) =>
+          action.title === item.action?.title &&
+          action.href === item.action?.href,
+      ),
+    );
+  }
+});
+
+test("execution actions never invent actions that are absent from recommendations", () => {
+  const plan = getRecoveryExecutionPlan(
+    {
+      decision: "Prioritize interview progression",
+      objective: "Advance the active interview pipeline",
+      evidence: [],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      strategy: "Concentrate effort on interview progression",
+      objective: "Advance the active interview pipeline",
+      approach: [],
+      guardrails: [],
+      successSignals: [],
+      confidence: "HIGH",
+    },
+  );
+
+  const actions = [
+    {
+      title: "Unrelated action",
+      reason: "Test",
+      href: "/test",
+      priority: "DIRECTION" as const,
+    },
+  ];
+
+  const executionActions = getExecutionActions(plan, actions);
+
+  assert.equal(executionActions.length, plan.sequence.length);
+  assert.ok(
+    executionActions.every((item) => item.action === null),
+  );
+});
+
+test("execution actions preserve the execution plan sequence", () => {
+  const plan = getRecoveryExecutionPlan(
+    {
+      decision: "Prioritize final-round progression",
+      objective: "Advance the final-round opportunity",
+      evidence: [],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      strategy: "Concentrate effort on final-round execution",
+      objective: "Advance the final-round opportunity",
+      approach: [],
+      guardrails: [],
+      successSignals: [],
+      confidence: "HIGH",
+    },
+  );
+
+  const actions = [
+    {
+      title: "Prepare your final-round talking points",
+      reason: "Prepare for the active final round.",
+      href: "/interviews",
+      priority: "INTERVIEWS" as const,
+    },
+  ];
+
+  const executionActions = getExecutionActions(plan, actions);
+
+  assert.deepEqual(
+    executionActions.map((item) => item.step),
+    plan.sequence,
+  );
+
+  assert.equal(
+    executionActions[0]?.action?.title,
+    "Prepare your final-round talking points",
+  );
 });
