@@ -4404,6 +4404,125 @@ test("recovery direction continues when evidence is insufficient", () => {
 });
 
 
+
+test("direction-aware recovery strategy closes out recovery", () => {
+  const decision = {
+    decision: "Close out recovery",
+    objective: "Complete the recovery transition.",
+    evidence: ["Recovery is operational."],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision, {
+    direction: "CLOSEOUT" as const,
+    rationale: "Recovery is operational.",
+    evidence: ["Recovery state is RECOVERED."],
+    source: "RECOVERY" as const,
+    confidence: "HIGH" as const,
+  });
+
+  assert.ok(
+    strategy.guardrails.includes(
+      "Closeout direction: do not expand recovery activity unless the transition becomes unstable.",
+    ),
+  );
+});
+
+test("direction-aware recovery strategy rebuilds lost capacity", () => {
+  const decision = {
+    decision: "Rebuild the recovery pipeline",
+    objective: "Restore recovery pipeline capacity.",
+    evidence: ["Opportunity capacity was lost."],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision, {
+    direction: "REBUILD" as const,
+    rationale: "Pipeline capacity was lost.",
+    evidence: ["Recovery opportunity closed."],
+    source: "CLOSURE" as const,
+    confidence: "HIGH" as const,
+  });
+
+  assert.ok(
+    strategy.guardrails.includes(
+      "Rebuild direction: replace lost opportunity capacity before relying on the existing pipeline.",
+    ),
+  );
+});
+
+test("direction-aware recovery strategy shifts before increasing volume", () => {
+  const decision = {
+    decision: "Prioritize application conversion",
+    objective: "Convert existing application activity.",
+    evidence: ["Applications are active."],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision, {
+    direction: "SHIFT" as const,
+    rationale: "The current path weakened.",
+    evidence: ["Recovery opportunity moved backward."],
+    source: "SETBACK" as const,
+    confidence: "HIGH" as const,
+  });
+
+  assert.ok(
+    strategy.guardrails.includes(
+      "Shift direction: change the recovery approach before increasing activity volume.",
+    ),
+  );
+});
+
+test("direction-aware recovery strategy intensifies the active opportunity", () => {
+  const decision = {
+    decision: "Prioritize final-round progression",
+    objective: "Advance the strongest late-stage opportunity.",
+    evidence: ["Final round is active."],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision, {
+    direction: "INTENSIFY" as const,
+    rationale: "Late-stage progression is supported.",
+    evidence: ["Final-round progression detected."],
+    source: "ADVANCEMENT" as const,
+    confidence: "HIGH" as const,
+  });
+
+  assert.ok(
+    strategy.guardrails.includes(
+      "Intensify direction: concentrate effort on the active recovery opportunity before expanding search.",
+    ),
+  );
+});
+
+test("direction-aware recovery strategy preserves the existing continue strategy", () => {
+  const decision = {
+    decision: "Maintain active job search",
+    objective: "Maintain qualified recovery activity.",
+    evidence: ["Recovery activity remains active."],
+    constraints: [],
+    confidence: "MEDIUM" as const,
+  };
+
+  const baseStrategy = getRecoveryStrategy(decision);
+
+  const directionAwareStrategy = getRecoveryStrategy(decision, {
+    direction: "CONTINUE" as const,
+    rationale: "Current direction remains supported.",
+    evidence: ["No material directional change."],
+    source: "ADVANCEMENT" as const,
+    confidence: "MEDIUM" as const,
+  });
+
+  assert.deepEqual(directionAwareStrategy, baseStrategy);
+});
+
 test("direction-aware recovery decision closes out recovered employment", () => {
   const direction = {
     direction: "CLOSEOUT" as const,

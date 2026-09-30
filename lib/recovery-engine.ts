@@ -2252,7 +2252,7 @@ export function getRecoveryDecision(
   };
 }
 
-export function getRecoveryStrategy(
+function getBaseRecoveryStrategy(
   decision: RecoveryDecision,
 ): RecoveryStrategy {
   switch (decision.decision) {
@@ -2466,6 +2466,62 @@ export function getRecoveryStrategy(
         ],
         confidence: "LOW",
       };
+  }
+}
+
+
+export function getRecoveryStrategy(
+  decision: RecoveryDecision,
+  recoveryDirection?: RecoveryDirection,
+): RecoveryStrategy {
+  const baseStrategy = getBaseRecoveryStrategy(decision);
+
+  if (
+    recoveryDirection === undefined ||
+    recoveryDirection.direction === "CONTINUE"
+  ) {
+    return baseStrategy;
+  }
+
+  switch (recoveryDirection.direction) {
+    case "CLOSEOUT":
+      return {
+        ...baseStrategy,
+        guardrails: [
+          ...baseStrategy.guardrails,
+          "Closeout direction: do not expand recovery activity unless the transition becomes unstable.",
+        ],
+      };
+
+    case "REBUILD":
+      return {
+        ...baseStrategy,
+        guardrails: [
+          ...baseStrategy.guardrails,
+          "Rebuild direction: replace lost opportunity capacity before relying on the existing pipeline.",
+        ],
+      };
+
+    case "SHIFT":
+      return {
+        ...baseStrategy,
+        guardrails: [
+          ...baseStrategy.guardrails,
+          "Shift direction: change the recovery approach before increasing activity volume.",
+        ],
+      };
+
+    case "INTENSIFY":
+      return {
+        ...baseStrategy,
+        guardrails: [
+          ...baseStrategy.guardrails,
+          "Intensify direction: concentrate effort on the active recovery opportunity before expanding search.",
+        ],
+      };
+
+    default:
+      return baseStrategy;
   }
 }
 
@@ -5271,7 +5327,10 @@ export function calculateRecovery(
     recoveryDirection,
   );
 
-  const recoveryStrategy = getRecoveryStrategy(recoveryDecision);
+  const recoveryStrategy = getRecoveryStrategy(
+    recoveryDecision,
+    recoveryDirection,
+  );
 
   const recoveryExecutionPlan = getRecoveryExecutionPlan(
     recoveryDecision,
