@@ -1947,7 +1947,61 @@ export function getRecoveryDecision(
   progressionSignal: ProgressionSignal,
   pipelineSignal: PipelineSignal,
   pipelineComposition: PipelineComposition,
+  recoveryDirection?: RecoveryDirection,
 ): RecoveryDecision {
+  if (recoveryDirection?.direction === "CLOSEOUT") {
+    return {
+      decision: "Close out recovery",
+      objective:
+        "Complete the transition into stable employment and preserve the recovery gains.",
+      evidence: recoveryDirection.evidence,
+      constraints: [],
+      confidence: recoveryDirection.confidence,
+    };
+  }
+
+  if (recoveryDirection?.direction === "REBUILD") {
+    return {
+      decision: "Rebuild the recovery pipeline",
+      objective:
+        "Replace lost opportunity capacity and restore sufficient qualified recovery pipeline.",
+      evidence: recoveryDirection.evidence,
+      constraints: [],
+      confidence: recoveryDirection.confidence,
+    };
+  }
+
+  if (recoveryDirection?.direction === "SHIFT") {
+    return {
+      decision:
+        pipelineComposition.activeApplications > 0 ||
+        pipelineComposition.activeInterviews > 0
+          ? "Prioritize application conversion"
+          : "Build recovery pipeline",
+      objective:
+        "Change the current recovery path in response to evidence that weakened the previous direction.",
+      evidence: recoveryDirection.evidence,
+      constraints: [],
+      confidence: recoveryDirection.confidence,
+    };
+  }
+
+  if (recoveryDirection?.direction === "INTENSIFY") {
+    return {
+      decision:
+        state === "OFFER"
+          ? "Prioritize offer execution"
+          : state === "FINAL_ROUND"
+            ? "Prioritize final-round progression"
+            : "Prioritize interview progression",
+      objective:
+        "Concentrate recovery effort on the active opportunity showing meaningful progression.",
+      evidence: recoveryDirection.evidence,
+      constraints: [],
+      confidence: recoveryDirection.confidence,
+    };
+  }
+
   const evidence: string[] = [];
   const constraints: string[] = [];
 
@@ -5008,7 +5062,7 @@ export function getRecoveryDirection(
   progressionSignal: string,
   outcomeIntelligence: RecoveryOutcomeIntelligence,
   learning: RecoveryLearning,
-  recalibration: RecoveryRecalibration,
+  recalibration?: RecoveryRecalibration,
 ): RecoveryDirection {
   if (state === "RECOVERED") {
     return {
@@ -5046,11 +5100,10 @@ export function getRecoveryDirection(
       ],
       source: "SETBACK",
       confidence:
-        recalibration.learningEffect === "CHALLENGES"
+        learning.confidence === "HIGH" ||
+        outcomeIntelligence.impact === "HIGH"
           ? "HIGH"
-          : outcomeIntelligence.impact === "HIGH"
-            ? "HIGH"
-            : "MEDIUM",
+          : "MEDIUM",
     };
   }
 
@@ -5062,7 +5115,6 @@ export function getRecoveryDirection(
 
     if (
       lateStageState &&
-      recalibration.learningEffect === "SUPPORTS" &&
       learning.confidence !== "LOW"
     ) {
       return {
@@ -5201,6 +5253,13 @@ export function calculateRecovery(
     pipelineComposition
   );
 
+  const recoveryDirection = getRecoveryDirection(
+    state,
+    progressionSignal,
+    outcomeIntelligence,
+    recoveryLearning,
+  );
+
   const recoveryDecision = getRecoveryDecision(
     input,
     state,
@@ -5208,7 +5267,8 @@ export function calculateRecovery(
     recentProgression,
     progressionSignal,
     pipelineSignal,
-    pipelineComposition
+    pipelineComposition,
+    recoveryDirection,
   );
 
   const recoveryStrategy = getRecoveryStrategy(recoveryDecision);
@@ -5243,13 +5303,6 @@ export function calculateRecovery(
     recoveryLearning,
   );
 
-  const recoveryDirection = getRecoveryDirection(
-    state,
-    progressionSignal,
-    outcomeIntelligence,
-    recoveryLearning,
-    recoveryRecalibration,
-  );
 
   return {
     state,

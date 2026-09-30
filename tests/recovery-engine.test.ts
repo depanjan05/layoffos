@@ -4402,3 +4402,153 @@ test("recovery direction continues when evidence is insufficient", () => {
   assert.equal(result.source, "INSUFFICIENT");
   assert.equal(result.confidence, "LOW");
 });
+
+
+test("direction-aware recovery decision closes out recovered employment", () => {
+  const direction = {
+    direction: "CLOSEOUT" as const,
+    rationale: "Recovery is operational.",
+    evidence: ["Recovery state is RECOVERED."],
+    source: "RECOVERY" as const,
+    confidence: "HIGH" as const,
+  };
+
+  const decision = getRecoveryDecision(
+    {} as Parameters<typeof getRecoveryDecision>[0],
+    "RECOVERED",
+    null,
+    "ACTIVE",
+    {
+      totalApplications: 0,
+      activeApplications: 0,
+      activeInterviews: 0,
+      activeFinalRounds: 0,
+      activeOffers: 0,
+    },
+    "NEUTRAL",
+    null,
+    direction,
+  );
+
+  assert.equal(decision.decision, "Close out recovery");
+  assert.equal(decision.confidence, "HIGH");
+});
+
+test("direction-aware recovery decision rebuilds after closure", () => {
+  const direction = {
+    direction: "REBUILD" as const,
+    rationale: "Pipeline capacity was lost.",
+    evidence: ["Recovery opportunity closed."],
+    source: "CLOSURE" as const,
+    confidence: "HIGH" as const,
+  };
+
+  const decision = getRecoveryDecision(
+    {} as Parameters<typeof getRecoveryDecision>[0],
+    "SEARCHING",
+    null,
+    "SETBACK",
+    {
+      totalApplications: 0,
+      activeApplications: 0,
+      activeInterviews: 0,
+      activeFinalRounds: 0,
+      activeOffers: 0,
+    },
+    "CLOSED",
+    null,
+    direction,
+  );
+
+  assert.equal(decision.decision, "Rebuild the recovery pipeline");
+  assert.equal(decision.confidence, "HIGH");
+});
+
+test("direction-aware recovery decision intensifies late-stage recovery", () => {
+  const direction = {
+    direction: "INTENSIFY" as const,
+    rationale: "Late-stage progression is supported.",
+    evidence: ["Interview progression detected."],
+    source: "ADVANCEMENT" as const,
+    confidence: "HIGH" as const,
+  };
+
+  const decision = getRecoveryDecision(
+    {} as Parameters<typeof getRecoveryDecision>[0],
+    "FINAL_ROUND",
+    null,
+    "ACTIVE",
+    {
+      totalApplications: 1,
+      activeApplications: 1,
+      activeInterviews: 1,
+      activeFinalRounds: 1,
+      activeOffers: 0,
+    },
+    "ADVANCING",
+    null,
+    direction,
+  );
+
+  assert.equal(decision.decision, "Prioritize final-round progression");
+  assert.equal(decision.confidence, "HIGH");
+});
+
+test("direction-aware recovery decision shifts after setback", () => {
+  const direction = {
+    direction: "SHIFT" as const,
+    rationale: "The current path weakened.",
+    evidence: ["Recovery opportunity moved backward."],
+    source: "SETBACK" as const,
+    confidence: "HIGH" as const,
+  };
+
+  const decision = getRecoveryDecision(
+    {} as Parameters<typeof getRecoveryDecision>[0],
+    "SEARCHING",
+    null,
+    null,
+    "SETBACK",
+    null,
+    {
+      totalApplications: 3,
+      activeApplications: 3,
+      activeInterviews: 0,
+      activeFinalRounds: 0,
+      activeOffers: 0,
+    },
+    direction,
+  );
+
+  assert.equal(decision.decision, "Prioritize application conversion");
+  assert.equal(decision.confidence, "HIGH");
+});
+
+test("direction-aware recovery decision preserves fallback logic for continue", () => {
+  const direction = {
+    direction: "CONTINUE" as const,
+    rationale: "Current direction remains supported.",
+    evidence: ["No material directional change."],
+    source: "ADVANCEMENT" as const,
+    confidence: "MEDIUM" as const,
+  };
+
+  const decision = getRecoveryDecision(
+    {} as Parameters<typeof getRecoveryDecision>[0],
+    "SEARCHING",
+    null,
+    null,
+    "ADVANCING",
+    "BUILDING",
+    {
+      totalApplications: 1,
+      activeApplications: 1,
+      activeInterviews: 0,
+      activeFinalRounds: 0,
+      activeOffers: 0,
+    },
+    direction,
+  );
+
+  assert.notEqual(decision.decision, "");
+});
