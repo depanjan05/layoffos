@@ -120,6 +120,33 @@ type RecoveryEngineResult = {
     nextState: string;
   };
   priorities: string[];
+
+  recoveryDecision: {
+    decision: string;
+    objective: string;
+    evidence: string[];
+    constraints: string[];
+    confidence: "HIGH" | "MEDIUM" | "LOW";
+  };
+
+  recoveryStrategy: {
+    strategy: string;
+    objective: string;
+    approach: string[];
+    guardrails: string[];
+    successSignals: string[];
+    confidence: "HIGH" | "MEDIUM" | "LOW";
+  };
+
+  recoveryExecutionPlan: {
+    objective: string;
+    sequence: string[];
+    immediateAction: string;
+    supportingActions: string[];
+    avoidActions: string[];
+    confidence: "HIGH" | "MEDIUM" | "LOW";
+  };
+
   actions: {
     title: string;
     reason: string;
@@ -1449,6 +1476,96 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
+
+
+              {/* RECOVERY DIRECTION AND EXECUTION */}
+              {recoveryEngine.recoveryExecutionPlan && (
+                <section className="mt-7 rounded-2xl border border-[#deded8] bg-[#fafaf7] p-5 sm:p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                        Recovery direction & execution
+                      </p>
+                      <h3 className="mt-2 text-xl font-bold tracking-tight text-[#111]">
+                        {recoveryEngine.recoveryDecision.decision}
+                      </h3>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-[#66665f]">
+                        {recoveryEngine.recoveryDecision.objective}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                      {recoveryEngine.recoveryExecutionPlan.confidence} confidence
+                    </span>
+                  </div>
+
+                  <div className="mt-5 border-t border-[#deded8] pt-5">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                      Recovery strategy
+                    </p>
+                    <h4 className="mt-2 text-base font-bold text-[#111]">
+                      {recoveryEngine.recoveryStrategy.strategy}
+                    </h4>
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.recoveryStrategy.objective}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 rounded-2xl bg-[#171714] p-5 text-white">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#c9c9c0]">
+                      Immediate action
+                    </p>
+                    <p className="mt-2 text-lg font-bold leading-7 text-white">
+                      {recoveryEngine.recoveryExecutionPlan.immediateAction}
+                    </p>
+                  </div>
+
+                  <div className="mt-6">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                      Execution sequence
+                    </p>
+                    <ol className="mt-4 space-y-3">
+                      {recoveryEngine.recoveryExecutionPlan.sequence.map((step, index) => (
+                        <li key={`${index}-${step}`} className="flex items-start gap-4">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eaeae4] text-xs font-bold text-[#33332e]">
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                          <p className="pt-1 text-sm leading-6 text-[#33332e]">
+                            {step}
+                          </p>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+
+                  <div className="mt-6 grid gap-5 border-t border-[#deded8] pt-5 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                        Supporting actions
+                      </p>
+                      <ul className="mt-3 space-y-2">
+                        {recoveryEngine.recoveryExecutionPlan.supportingActions.map((item) => (
+                          <li key={item} className="text-sm leading-6 text-[#55554f]">
+                            • {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                        What to avoid
+                      </p>
+                      <ul className="mt-3 space-y-2">
+                        {recoveryEngine.recoveryExecutionPlan.avoidActions.map((item) => (
+                          <li key={item} className="text-sm leading-6 text-[#55554f]">
+                            • {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </section>
+              )}
 
               {/* ACTION INTELLIGENCE */}
               <div className="mt-7 rounded-2xl border border-[#deded8] bg-[#fafaf7] p-5 sm:p-6">
