@@ -4111,6 +4111,120 @@ test("learning-aware recalibration remains insufficient with low-confidence lear
   assert.equal(result.learningEffect, "INSUFFICIENT");
 });
 
+test("execution-aware recovery recalibration supports positive action effect", () => {
+  const decision = {
+    decision: "Prioritize interview progression",
+    objective: "Convert active interviews into late-stage opportunities.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  const recalibration = getRecoveryRecalibration(
+    "INTERVIEWING",
+    "ADVANCING",
+    decision,
+    strategy,
+    plan,
+    [],
+    {
+      pattern: "Meaningful recovery progression is being generated.",
+      learning:
+        "The current recovery approach is producing evidence of downstream movement. Preserve the direction while continuing execution.",
+      evidence: [],
+      confidence: "HIGH" as const,
+    },
+    {
+      status: "POSITIVE" as const,
+      headline: "Action produced positive movement",
+      summary: "The completed action generated downstream progression.",
+      evidence: ["Interview progressed."],
+      recommendation: "Continue the current recovery path.",
+    },
+  );
+
+  assert.equal(recalibration.executionEffect, "SUPPORTS");
+});
+
+test("execution-aware recovery recalibration challenges after negative action effect", () => {
+  const decision = {
+    decision: "Prioritize application conversion",
+    objective: "Convert existing application activity into conversations.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  const recalibration = getRecoveryRecalibration(
+    "SEARCHING",
+    "SETBACK",
+    decision,
+    strategy,
+    plan,
+    [],
+    {
+      pattern: "Recovery progression weakened or moved backward.",
+      learning:
+        "The latest recovery evidence weakens the current direction. Treat the signal as learning before expanding the same activity.",
+      evidence: [],
+      confidence: "HIGH" as const,
+    },
+    {
+      status: "NEGATIVE" as const,
+      headline: "Action did not produce progression",
+      summary: "The completed action produced a negative downstream result.",
+      evidence: ["Application did not progress."],
+      recommendation: "Reassess the current approach.",
+    },
+  );
+
+  assert.equal(recalibration.executionEffect, "CHALLENGES");
+});
+
+test("execution-aware recovery recalibration remains insufficient for unknown action effect", () => {
+  const decision = {
+    decision: "Build recovery pipeline",
+    objective: "Create sufficient qualified recovery pipeline.",
+    evidence: [],
+    constraints: [],
+    confidence: "MEDIUM" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+
+  const recalibration = getRecoveryRecalibration(
+    "SEARCHING",
+    "NEUTRAL",
+    decision,
+    strategy,
+    plan,
+    [],
+    {
+      pattern: "No material directional recovery pattern is visible.",
+      learning:
+        "The available outcome evidence is insufficient to establish a new recovery lesson.",
+      evidence: [],
+      confidence: "LOW" as const,
+    },
+    {
+      status: "UNKNOWN" as const,
+      headline: "No downstream action outcome",
+      summary: "The action has not produced a measurable outcome.",
+      evidence: [],
+      recommendation: "Continue until stronger evidence appears.",
+    },
+  );
+
+  assert.equal(recalibration.executionEffect, "INSUFFICIENT");
+});
+
 test("recovery recalibration reassesses after a setback", () => {
   const decision = {
     decision: "Rebuild the recovery pipeline",

@@ -172,6 +172,7 @@ export type RecoveryRecalibration = {
   decisionStatus: "HOLD" | "REASSESS";
   strategyStatus: "HOLD" | "REASSESS";
   learningEffect: "SUPPORTS" | "CHALLENGES" | "INSUFFICIENT";
+  executionEffect: "SUPPORTS" | "CHALLENGES" | "INSUFFICIENT";
   nextStep: string;
   rationale: string[];
   confidence: "HIGH" | "MEDIUM" | "LOW";
@@ -2975,6 +2976,20 @@ export function getRecoveryLearning(
   };
 }
 
+function getRecoveryExecutionEffect(
+  actionEffect: RecoveryActionEffect,
+): RecoveryRecalibration["executionEffect"] {
+  if (actionEffect.status === "POSITIVE") {
+    return "SUPPORTS";
+  }
+
+  if (actionEffect.status === "NEGATIVE") {
+    return "CHALLENGES";
+  }
+
+  return "INSUFFICIENT";
+}
+
 export function getRecoveryRecalibration(
   state: RecoveryState,
   progressionSignal: string,
@@ -2989,6 +3004,13 @@ export function getRecoveryRecalibration(
     evidence: [],
     confidence: "LOW",
   },
+  executionEffect: RecoveryActionEffect = {
+    status: "UNKNOWN",
+    headline: "",
+    summary: "",
+    evidence: [],
+    recommendation: "",
+  },
 ): RecoveryRecalibration {
   const nextAction =
     plan.sequence
@@ -2998,6 +3020,9 @@ export function getRecoveryRecalibration(
       .find((action): action is RecoveryAction => action !== null) ?? null;
 
   const nextStep = nextAction?.title ?? plan.immediateAction;
+
+  const resolvedExecutionEffect =
+    getRecoveryExecutionEffect(executionEffect);
 
   const learningEffect: RecoveryRecalibration["learningEffect"] =
     learning.confidence === "LOW"
@@ -3014,6 +3039,7 @@ export function getRecoveryRecalibration(
       decisionStatus: "HOLD",
       strategyStatus: "HOLD",
       learningEffect,
+      executionEffect: resolvedExecutionEffect,
       nextStep,
       rationale: [
         "The recovery decision remains aligned with the current recovered state.",
@@ -3036,6 +3062,7 @@ export function getRecoveryRecalibration(
       decisionStatus: "REASSESS",
       strategyStatus: "REASSESS",
       learningEffect,
+      executionEffect: resolvedExecutionEffect,
       nextStep,
       rationale: [
         "The latest pipeline signal changes the evidence supporting the current recovery direction.",
@@ -3052,6 +3079,7 @@ export function getRecoveryRecalibration(
       decisionStatus: "HOLD",
       strategyStatus: "HOLD",
       learningEffect,
+      executionEffect: resolvedExecutionEffect,
       nextStep,
       rationale: [
         "The latest progression signal supports the current recovery direction.",
@@ -3067,6 +3095,7 @@ export function getRecoveryRecalibration(
     decisionStatus: "HOLD",
     strategyStatus: "HOLD",
     learningEffect,
+    executionEffect: resolvedExecutionEffect,
     nextStep,
     rationale: [
       "The current recovery decision remains supported by available evidence.",
@@ -5417,6 +5446,7 @@ export function calculateRecovery(
     recoveryExecutionPlan,
     actions,
     recoveryLearning,
+    actionEffect,
   );
 
 
