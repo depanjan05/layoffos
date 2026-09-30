@@ -14,7 +14,9 @@ import {
   getPipelineHealth,
   getProgressionSignal,
   getRecoveryOutcome,
+  getRecoveryLearning,
   getRecoveryOutcomeIntelligence,
+
   getState,
   getWeeklyPlanTaskEffect,
   type RecentProgression,
@@ -182,6 +184,71 @@ test("neutral outcome intelligence avoids directional overreaction", () => {
   assert.equal(result.direction, "NEUTRAL");
   assert.equal(result.impact, "LOW");
   assert.match(result.implication, /does not provide enough directional evidence/i);
+});
+
+test("positive outcome creates recovery learning", () => {
+  const outcome = getRecoveryOutcome(
+    progression("Interview", "Final"),
+  );
+
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "ADVANCING",
+  );
+
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "ADVANCING",
+  );
+
+  assert.match(learning.pattern, /meaningful recovery progression/i);
+  assert.match(learning.learning, /producing evidence/i);
+  assert.equal(learning.confidence, "MEDIUM");
+  assert.ok(learning.evidence.length > 0);
+});
+
+test("closed outcome creates capacity-loss recovery learning", () => {
+  const outcome = getRecoveryOutcome(
+    progression("Final", "Withdrawn"),
+  );
+
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "CLOSED",
+  );
+
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "CLOSED",
+  );
+
+  assert.match(learning.pattern, /opportunity capacity was lost/i);
+  assert.match(learning.learning, /reduced pipeline/i);
+  assert.equal(learning.confidence, "HIGH");
+});
+
+test("neutral outcome avoids inventing recovery learning", () => {
+  const outcome = getRecoveryOutcome(null);
+
+  const intelligence = getRecoveryOutcomeIntelligence(
+    outcome,
+    "NEUTRAL",
+  );
+
+  const learning = getRecoveryLearning(
+    outcome,
+    intelligence,
+    "NEUTRAL",
+  );
+
+  assert.match(
+    learning.pattern,
+    /no material directional recovery pattern/i,
+  );
+  assert.match(learning.learning, /insufficient/i);
+  assert.equal(learning.confidence, "LOW");
 });
 
 test("weekly plan task matches only its destination progression type", () => {

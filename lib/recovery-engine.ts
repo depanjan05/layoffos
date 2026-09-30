@@ -159,6 +159,13 @@ export type RecoveryOutcome = {
   recommendation: string;
 };
 
+export type RecoveryLearning = {
+  pattern: string;
+  learning: string;
+  evidence: string[];
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+};
+
 export type RecoveryRecalibration = {
   trigger: string;
   signal: string;
@@ -932,6 +939,7 @@ export type RecoveryEngineResult = {
   momentum: RecoveryMomentum;
   outcome: RecoveryOutcome;
   outcomeIntelligence: RecoveryOutcomeIntelligence;
+  learning: RecoveryLearning;
   recalibration: RecoveryRecalibration;
   actionEffect: RecoveryActionEffect;
   actionRecalibration: ActionRecalibration;
@@ -2727,6 +2735,59 @@ const EXECUTION_ACTION_MAP: Record<string, string[]> = {
     "Add a new target opportunity",
   ],
 };
+
+export function getRecoveryLearning(
+  outcome: RecoveryOutcome,
+  outcomeIntelligence: RecoveryOutcomeIntelligence,
+  progressionSignal: string,
+): RecoveryLearning {
+  const confidence =
+    outcomeIntelligence.impact === "HIGH"
+      ? "HIGH"
+      : outcomeIntelligence.impact === "MEDIUM"
+        ? "MEDIUM"
+        : "LOW";
+
+  if (
+    outcome.status === "POSITIVE" ||
+    progressionSignal === "ADVANCING"
+  ) {
+    return {
+      pattern: "Meaningful recovery progression is being generated.",
+      learning:
+        "The current recovery approach is producing evidence of downstream movement. Preserve the direction while continuing execution.",
+      evidence: outcome.evidence,
+      confidence,
+    };
+  }
+
+  if (
+    outcome.status === "NEGATIVE" ||
+    progressionSignal === "SETBACK" ||
+    progressionSignal === "CLOSED"
+  ) {
+    return {
+      pattern:
+        progressionSignal === "CLOSED"
+          ? "Recovery opportunity capacity was lost."
+          : "Recovery progression weakened or moved backward.",
+      learning:
+        progressionSignal === "CLOSED"
+          ? "The current recovery path has lost available opportunity capacity. Future decisions should account for the reduced pipeline."
+          : "The latest recovery evidence weakens the current direction. Treat the signal as learning before expanding the same activity.",
+      evidence: outcome.evidence,
+      confidence,
+    };
+  }
+
+  return {
+    pattern: "No material directional recovery pattern is visible.",
+    learning:
+      "The available outcome evidence is insufficient to establish a new recovery lesson. Continue the current approach until a stronger signal appears.",
+    evidence: outcome.evidence,
+    confidence,
+  };
+}
 
 export function getRecoveryRecalibration(
   state: RecoveryState,
@@ -4947,6 +5008,12 @@ export function calculateRecovery(
     outcome,
     progressionSignal,
   );
+
+  const recoveryLearning = getRecoveryLearning(
+    outcome,
+    outcomeIntelligence,
+    progressionSignal,
+  );
   const actionEffect = getRecoveryActionEffect(
     input.completedActions ?? [],
     input.progressionEvents ?? []
@@ -5050,6 +5117,7 @@ export function calculateRecovery(
     momentum,
     outcome,
     outcomeIntelligence,
+    learning: recoveryLearning,
     recalibration: recoveryRecalibration,
     actionEffect,
     actionRecalibration,

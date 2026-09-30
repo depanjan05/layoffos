@@ -46,6 +46,12 @@ type RecoveryEngineResult = {
     implication: string;
     evidence: string[];
   };
+  learning: {
+    pattern: string;
+    learning: string;
+    evidence: string[];
+    confidence: "HIGH" | "MEDIUM" | "LOW";
+  };
   recalibration: {
     needed: boolean;
     headline: string;
@@ -1711,7 +1717,61 @@ export default function DashboardPage() {
                     </p>
                   </div>
 
-                  {/* RECALIBRATION */}
+                  {/* RECOVERY LEARNING */}
+              <div className="mt-7 rounded-2xl border border-[#deded8] p-5 sm:p-6">
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                    Recovery Learning
+                  </p>
+                  <h3 className="mt-1 text-lg font-bold text-[#111]">
+                    {recoveryEngine.learning.pattern}
+                  </h3>
+                </div>
+
+                <div className="mt-5 grid gap-5 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                      What LayoffOS learned
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.learning.learning}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                      Confidence
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-[#111]">
+                      {recoveryEngine.learning.confidence}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                    Evidence
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {recoveryEngine.learning.evidence.length > 0 ? (
+                      recoveryEngine.learning.evidence.map((item) => (
+                        <p
+                          key={item}
+                          className="text-sm leading-6 text-[#66665f]"
+                        >
+                          {item}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="text-sm leading-6 text-[#66665f]">
+                        No recovery learning evidence is available yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* RECALIBRATION */}
                   <div className="border-t border-[#deded8] pt-5 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
