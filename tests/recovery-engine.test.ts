@@ -3696,6 +3696,134 @@ test("recovery execution plan establishes sufficient qualified pipeline", () => 
   assert.equal(plan.confidence, "MEDIUM");
 });
 
+test("direction-aware recovery execution plan closes out recovery", () => {
+  const decision = {
+    decision: "Close out recovery",
+    objective:
+      "Complete the transition into stable employment and preserve the recovery gains.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy, {
+    direction: "CLOSEOUT" as const,
+    rationale: "Employment recovery is operational.",
+    evidence: [],
+    source: "RECOVERY" as const,
+    confidence: "HIGH" as const,
+  });
+
+  assert.ok(
+    plan.avoidActions.includes(
+      "Closeout direction: do not expand recovery activity unless the transition becomes unstable.",
+    ),
+  );
+});
+
+test("direction-aware recovery execution plan rebuilds lost capacity", () => {
+  const decision = {
+    decision: "Rebuild the recovery pipeline",
+    objective:
+      "Replace lost opportunity capacity while learning from the latest pipeline change.",
+    evidence: [],
+    constraints: [],
+    confidence: "MEDIUM" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy, {
+    direction: "REBUILD" as const,
+    rationale: "Opportunity capacity was lost.",
+    evidence: [],
+    source: "CLOSURE" as const,
+    confidence: "HIGH" as const,
+  });
+
+  assert.ok(
+    plan.avoidActions.includes(
+      "Rebuild direction: replace lost opportunity capacity before relying on the remaining pipeline.",
+    ),
+  );
+});
+
+test("direction-aware recovery execution plan shifts before increasing volume", () => {
+  const decision = {
+    decision: "Prioritize application conversion",
+    objective:
+      "Turn existing application activity into active conversations and downstream opportunities before materially increasing volume.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy, {
+    direction: "SHIFT" as const,
+    rationale: "The latest recovery evidence weakened the current path.",
+    evidence: [],
+    source: "SETBACK" as const,
+    confidence: "HIGH" as const,
+  });
+
+  assert.ok(
+    plan.avoidActions.includes(
+      "Shift direction: change the recovery approach before increasing activity volume.",
+    ),
+  );
+});
+
+test("direction-aware recovery execution plan intensifies the active opportunity", () => {
+  const decision = {
+    decision: "Prioritize final-round progression",
+    objective:
+      "Convert the strongest late-stage opportunity into the next recovery transition.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const plan = getRecoveryExecutionPlan(decision, strategy, {
+    direction: "INTENSIFY" as const,
+    rationale: "The active recovery opportunity is progressing.",
+    evidence: [],
+    source: "ADVANCEMENT" as const,
+    confidence: "HIGH" as const,
+  });
+
+  assert.ok(
+    plan.avoidActions.includes(
+      "Intensify direction: concentrate effort on the active recovery opportunity before expanding search.",
+    ),
+  );
+});
+
+test("direction-aware recovery execution plan preserves the existing continue plan", () => {
+  const decision = {
+    decision: "Build recovery pipeline",
+    objective:
+      "Create enough qualified opportunities to move the recovery process into active progression.",
+    evidence: [],
+    constraints: [],
+    confidence: "MEDIUM" as const,
+  };
+
+  const strategy = getRecoveryStrategy(decision);
+  const basePlan = getRecoveryExecutionPlan(decision, strategy);
+
+  const directionAwarePlan = getRecoveryExecutionPlan(decision, strategy, {
+    direction: "CONTINUE" as const,
+    rationale: "The current recovery path remains supported.",
+    evidence: [],
+    source: "ADVANCEMENT" as const,
+    confidence: "MEDIUM" as const,
+  });
+
+  assert.deepEqual(directionAwarePlan, basePlan);
+});
+
 test("recovery execution plan falls back safely for an unknown decision", () => {
   const decision = {
     decision: "Unknown recovery decision",

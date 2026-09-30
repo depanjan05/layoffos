@@ -2525,7 +2525,7 @@ export function getRecoveryStrategy(
   }
 }
 
-export function getRecoveryExecutionPlan(
+function getBaseRecoveryExecutionPlan(
   decision: RecoveryDecision,
   strategy: RecoveryStrategy,
 ): RecoveryExecutionPlan {
@@ -2736,6 +2736,62 @@ export function getRecoveryExecutionPlan(
         ],
         confidence: "LOW",
       };
+  }
+}
+
+export function getRecoveryExecutionPlan(
+  decision: RecoveryDecision,
+  strategy: RecoveryStrategy,
+  recoveryDirection?: RecoveryDirection,
+): RecoveryExecutionPlan {
+  const basePlan = getBaseRecoveryExecutionPlan(decision, strategy);
+
+  if (
+    recoveryDirection === undefined ||
+    recoveryDirection.direction === "CONTINUE"
+  ) {
+    return basePlan;
+  }
+
+  switch (recoveryDirection.direction) {
+    case "CLOSEOUT":
+      return {
+        ...basePlan,
+        avoidActions: [
+          ...basePlan.avoidActions,
+          "Closeout direction: do not expand recovery activity unless the transition becomes unstable.",
+        ],
+      };
+
+    case "REBUILD":
+      return {
+        ...basePlan,
+        avoidActions: [
+          ...basePlan.avoidActions,
+          "Rebuild direction: replace lost opportunity capacity before relying on the remaining pipeline.",
+        ],
+      };
+
+    case "SHIFT":
+      return {
+        ...basePlan,
+        avoidActions: [
+          ...basePlan.avoidActions,
+          "Shift direction: change the recovery approach before increasing activity volume.",
+        ],
+      };
+
+    case "INTENSIFY":
+      return {
+        ...basePlan,
+        avoidActions: [
+          ...basePlan.avoidActions,
+          "Intensify direction: concentrate effort on the active recovery opportunity before expanding search.",
+        ],
+      };
+
+    default:
+      return basePlan;
   }
 }
 
@@ -5334,7 +5390,8 @@ export function calculateRecovery(
 
   const recoveryExecutionPlan = getRecoveryExecutionPlan(
     recoveryDecision,
-    recoveryStrategy
+    recoveryStrategy,
+    recoveryDirection,
   );
 
   const actions = getActions(
