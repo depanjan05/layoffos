@@ -153,11 +153,13 @@ export type RecoveryOutcome = {
 };
 
 export type RecoveryRecalibration = {
-  needed: boolean;
-  headline: string;
-  summary: string;
-  reason: string;
-  nextFocus: RecoveryPriority;
+  trigger: string;
+  signal: string;
+  decisionStatus: "HOLD" | "REASSESS";
+  strategyStatus: "HOLD" | "REASSESS";
+  nextStep: string;
+  rationale: string[];
+  confidence: "HIGH" | "MEDIUM" | "LOW";
 };
 
 export type RecoveryActionEffect = {
@@ -932,6 +934,7 @@ export type RecoveryEngineResult = {
   recoveryStrategy: RecoveryStrategy;
   recoveryExecutionPlan: RecoveryExecutionPlan;
   executionActions: RecoveryExecutionAction[];
+  recoveryRecalibration: RecoveryRecalibration;
   actions: RecoveryAction[];
   transition: RecoveryTransition;
   recentProgression: RecentProgression | null;
@@ -2716,6 +2719,91 @@ const EXECUTION_ACTION_MAP: Record<string, string[]> = {
     "Add a new target opportunity",
   ],
 };
+
+export function getRecoveryRecalibration(
+  state: RecoveryState,
+  progressionSignal: string,
+  decision: RecoveryDecision,
+  strategy: RecoveryStrategy,
+  plan: RecoveryExecutionPlan,
+  actions: RecoveryAction[],
+): RecoveryRecalibration {
+  const nextAction =
+    plan.sequence
+      .map((step) => EXECUTION_ACTION_MAP[step] ?? [])
+      .flatMap((titles) => titles)
+      .map((title) => actions.find((action) => action.title === title) ?? null)
+      .find((action): action is RecoveryAction => action !== null) ?? null;
+
+  const nextStep = nextAction?.title ?? plan.immediateAction;
+
+  if (state === "RECOVERED") {
+    return {
+      trigger: "Recovery state changed to recovered",
+      signal: "Employment recovery is now operational.",
+      decisionStatus: "HOLD",
+      strategyStatus: "HOLD",
+      nextStep,
+      rationale: [
+        "The recovery decision remains aligned with the current recovered state.",
+        "Execution should focus on completing the transition and protecting the gains created by recovery.",
+      ],
+      confidence: decision.confidence,
+    };
+  }
+
+  if (
+    progressionSignal === "SETBACK" ||
+    progressionSignal === "CLOSED"
+  ) {
+    return {
+      trigger: "Pipeline signal changed materially",
+      signal:
+        progressionSignal === "SETBACK"
+          ? "An active recovery opportunity moved backward."
+          : "An active recovery opportunity was closed.",
+      decisionStatus: "REASSESS",
+      strategyStatus: "REASSESS",
+      nextStep,
+      rationale: [
+        "The latest pipeline signal changes the evidence supporting the current recovery direction.",
+        "The recovery decision and strategy should be reassessed before expanding activity.",
+      ],
+      confidence: "HIGH",
+    };
+  }
+
+  if (progressionSignal === "ADVANCING") {
+    return {
+      trigger: "Pipeline signal improved",
+      signal: "An active recovery opportunity is progressing.",
+      decisionStatus: "HOLD",
+      strategyStatus: "HOLD",
+      nextStep,
+      rationale: [
+        "The latest progression signal supports the current recovery direction.",
+        "Continue executing the current strategy while protecting the active opportunity.",
+      ],
+      confidence: decision.confidence,
+    };
+  }
+
+  return {
+    trigger: "Current recovery signal reviewed",
+    signal: "No material pipeline change requires a new recovery direction.",
+    decisionStatus: "HOLD",
+    strategyStatus: "HOLD",
+    nextStep,
+    rationale: [
+      "The current recovery decision remains supported by available evidence.",
+      "Continue the existing execution plan until a meaningful signal changes.",
+    ],
+    confidence:
+      decision.confidence === "LOW"
+        ? "LOW"
+        : strategy.confidence,
+  };
+}
 
 export function getExecutionActions(
   plan: RecoveryExecutionPlan,
@@ -4668,76 +4756,6 @@ export function getRecoveryOutcome(
       "Continue monitoring the opportunity until a clearer progression, setback, or closure signal appears.",
   };
 }
-
-function getRecoveryRecalibration(
-  outcome: RecoveryOutcome,
-  pipelineComposition: PipelineComposition
-): RecoveryRecalibration {
-  if (outcome.status === "NEGATIVE") {
-    return {
-      needed: true,
-      headline: "Recovery strategy needs recalibration.",
-      summary:
-        "A recent opportunity was lost or closed, so the next actions should replace that capacity rather than continue as if the pipeline were unchanged.",
-      reason: outcome.headline,
-      nextFocus:
-        pipelineComposition.activeApplications < 3
-          ? "APPLICATIONS"
-          : pipelineComposition.activeInterviews === 0
-            ? "NETWORKING"
-            : "INTERVIEWS",
-    };
-  }
-
-  if (outcome.status === "POSITIVE") {
-    return {
-      needed: false,
-      headline: "Recovery strategy is responding to positive movement.",
-      summary:
-        "Recent progression provides evidence that the current recovery direction is producing movement.",
-      reason: outcome.headline,
-      nextFocus:
-        pipelineComposition.finalRounds > 0 ||
-        pipelineComposition.offers > 0 ||
-        pipelineComposition.acceptedOffers > 0
-          ? "INTERVIEWS"
-          : pipelineComposition.activeInterviews > 0
-            ? "INTERVIEWS"
-            : "APPLICATIONS",
-    };
-  }
-
-  if (outcome.status === "MIXED") {
-    return {
-      needed: false,
-      headline: "Recovery strategy does not need recalibration yet.",
-      summary:
-        "A recent stage change was detected, but the available evidence is not strong enough to justify changing the recovery direction.",
-      reason: outcome.headline,
-      nextFocus:
-        pipelineComposition.activeInterviews > 0
-          ? "INTERVIEWS"
-          : pipelineComposition.activeApplications > 0
-            ? "APPLICATIONS"
-            : "NETWORKING",
-    };
-  }
-
-  return {
-    needed: false,
-    headline: "No recalibration signal is available yet.",
-    summary:
-      "There is no recent progression outcome to justify changing the current recovery strategy.",
-    reason: "No recent progression event was detected.",
-    nextFocus:
-      pipelineComposition.activeApplications > 0
-        ? "APPLICATIONS"
-        : pipelineComposition.activeInterviews > 0
-          ? "INTERVIEWS"
-          : "NETWORKING",
-  };
-}
-
 function getRecoveryChange(
   progression: RecentProgression | null
 ): RecoveryChange | null {
@@ -4876,15 +4894,8 @@ export function calculateRecovery(
     recentProgression,
     pipelineComposition
   );
-
   const outcome = getRecoveryOutcome(recentProgression);
-
-  const recalibration = getRecoveryRecalibration(
-    outcome,
-    pipelineComposition
-  );
-
-  const actionEffect = getRecoveryActionEffect(
+const actionEffect = getRecoveryActionEffect(
     input.completedActions ?? [],
     input.progressionEvents ?? []
   );
@@ -4964,6 +4975,15 @@ export function calculateRecovery(
     actions
   );
 
+  const recoveryRecalibration = getRecoveryRecalibration(
+  state,
+  progressionSignal,
+  recoveryDecision,
+  recoveryStrategy,
+  recoveryExecutionPlan,
+  actions
+);
+
   return {
     state,
     applicationActionEvents:
@@ -4977,7 +4997,7 @@ export function calculateRecovery(
     pipelineHealth,
     momentum,
     outcome,
-    recalibration,
+    recalibration: recoveryRecalibration,
     actionEffect,
     actionRecalibration,
     actionMemory,
@@ -4992,6 +5012,7 @@ export function calculateRecovery(
     recoveryStrategy,
     recoveryExecutionPlan,
     executionActions,
+    recoveryRecalibration,
     actions,
     transition: getTransition(input, state),
     recentProgression,

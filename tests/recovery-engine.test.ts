@@ -9,6 +9,7 @@ import {
   getRecoveryDecision,
   getRecoveryStrategy,
   getRecoveryExecutionPlan,
+  getRecoveryRecalibration,
   calculateRecovery,
   getPipelineHealth,
   getProgressionSignal,
@@ -3727,4 +3728,145 @@ test("execution actions preserve the execution plan sequence", () => {
     executionActions[0]?.action?.title,
     "Prepare your final-round talking points",
   );
+});
+
+
+test("recovery recalibration reassesses after a setback", () => {
+  const decision = {
+    decision: "Rebuild the recovery pipeline",
+    objective: "Restore qualified opportunity capacity",
+    evidence: ["A recent opportunity was lost"],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = {
+    strategy: "Replace lost opportunity capacity",
+    objective: "Restore qualified opportunity capacity",
+    approach: ["Replace lost pipeline capacity"],
+    guardrails: ["Avoid undifferentiated volume"],
+    successSignals: ["Qualified replacement opportunities"],
+    confidence: "HIGH" as const,
+  };
+
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+  const recalibration = getRecoveryRecalibration(
+    "SEARCHING",
+    "SETBACK",
+    decision,
+    strategy,
+    plan,
+    []
+  );
+
+  assert.equal(recalibration.decisionStatus, "REASSESS");
+  assert.equal(recalibration.strategyStatus, "REASSESS");
+  assert.match(recalibration.signal, /moved backward/i);
+});
+
+test("recovery recalibration holds direction during advancement", () => {
+  const decision = {
+    decision: "Prioritize interview progression",
+    objective: "Move active interviews toward later stages",
+    evidence: ["An active interview is progressing"],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = {
+    strategy: "Concentrate effort on late-stage execution",
+    objective: "Move active interviews toward later stages",
+    approach: ["Prepare for the next interview stage"],
+    guardrails: ["Protect active opportunities"],
+    successSignals: ["Interview progression"],
+    confidence: "HIGH" as const,
+  };
+
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+  const recalibration = getRecoveryRecalibration(
+    "INTERVIEWING",
+    "ADVANCING",
+    decision,
+    strategy,
+    plan,
+    []
+  );
+
+  assert.equal(recalibration.decisionStatus, "HOLD");
+  assert.equal(recalibration.strategyStatus, "HOLD");
+  assert.match(recalibration.signal, /progressing/i);
+});
+
+test("recovery recalibration preserves execution as the next step", () => {
+  const decision = {
+    decision: "Prioritize final-round progression",
+    objective: "Move the final-round opportunity toward an offer",
+    evidence: ["A final round is active"],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = {
+    strategy: "Concentrate effort on final-round execution",
+    objective: "Move the final-round opportunity toward an offer",
+    approach: ["Prepare specifically for final-round requirements"],
+    guardrails: ["Protect final-round execution"],
+    successSignals: ["Final-round progression"],
+    confidence: "HIGH" as const,
+  };
+
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+  const action = {
+    title: "Prepare your final-round talking points",
+    reason: "Final-round preparation is the highest-value next action.",
+    href: "/interviews",
+    priority: "INTERVIEWS",
+  };
+
+  const recalibration = getRecoveryRecalibration(
+    "FINAL_ROUND",
+    "NEUTRAL",
+    decision,
+    strategy,
+    plan,
+    [action]
+  );
+
+  assert.equal(
+    recalibration.nextStep,
+    "Prepare your final-round talking points"
+  );
+});
+
+test("recovery recalibration holds after recovery", () => {
+  const decision = {
+    decision: "Close out recovery",
+    objective: "Complete the employment transition",
+    evidence: ["Employment transition is active"],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const strategy = {
+    strategy: "Complete the recovery transition",
+    objective: "Complete the employment transition",
+    approach: ["Complete outstanding transition steps"],
+    guardrails: ["Protect the gains created by recovery"],
+    successSignals: ["Transition operational"],
+    confidence: "HIGH" as const,
+  };
+
+  const plan = getRecoveryExecutionPlan(decision, strategy);
+  const recalibration = getRecoveryRecalibration(
+    "RECOVERED",
+    "NEUTRAL",
+    decision,
+    strategy,
+    plan,
+    []
+  );
+
+  assert.equal(recalibration.decisionStatus, "HOLD");
+  assert.equal(recalibration.strategyStatus, "HOLD");
+  assert.match(recalibration.trigger, /recovered/i);
 });

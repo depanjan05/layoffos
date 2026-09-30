@@ -164,6 +164,17 @@ type RecoveryEngineResult = {
     } | null;
   }[];
 
+  recoveryRecalibration: {
+    trigger: string;
+    signal: string;
+    decisionStatus: "HOLD" | "REASSESS";
+    strategyStatus: "HOLD" | "REASSESS";
+    nextStep: string;
+    rationale: string[];
+    confidence: "HIGH" | "MEDIUM" | "LOW";
+  };
+
+
   actions: {
     title: string;
     reason: string;
