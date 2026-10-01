@@ -13,6 +13,7 @@ import {
   getRecoveryDirection,
   getRecoveryDirectionMemory,
   getRecoveryDirectionStability,
+  getRecoveryDirectionPersistence,
   calculateRecovery,
   getPipelineHealth,
   getProgressionSignal,
@@ -4367,6 +4368,70 @@ test("recovery recalibration holds after recovery", () => {
   assert.match(recalibration.trigger, /recovered/i);
 });
 
+
+test("direction persistence starts from one cycle", () => {
+  const stability = {
+    status: "INITIAL",
+    previousDirection: null,
+    currentDirection: "CONTINUE",
+    rationale: "Initial directional state.",
+    confidence: "MEDIUM",
+  } as const;
+
+  const persistence = getRecoveryDirectionPersistence(stability);
+
+  assert.equal(persistence.status, "NEW");
+  assert.equal(persistence.direction, "CONTINUE");
+  assert.equal(persistence.consecutiveCycles, 1);
+});
+
+test("direction persistence increments when direction remains stable", () => {
+  const stability = {
+    status: "STABLE",
+    previousDirection: "CONTINUE",
+    currentDirection: "CONTINUE",
+    rationale: "Direction remains stable.",
+    confidence: "MEDIUM",
+  } as const;
+
+  const persistence = getRecoveryDirectionPersistence(stability, 3);
+
+  assert.equal(persistence.status, "PERSISTING");
+  assert.equal(persistence.direction, "CONTINUE");
+  assert.equal(persistence.consecutiveCycles, 4);
+});
+
+test("direction persistence resets after an ordinary directional change", () => {
+  const stability = {
+    status: "CHANGED",
+    previousDirection: "CONTINUE",
+    currentDirection: "SHIFT",
+    rationale: "Direction changed.",
+    confidence: "HIGH",
+  } as const;
+
+  const persistence = getRecoveryDirectionPersistence(stability, 7);
+
+  assert.equal(persistence.status, "NEW");
+  assert.equal(persistence.direction, "SHIFT");
+  assert.equal(persistence.consecutiveCycles, 1);
+});
+
+test("direction persistence resets after a material recovery reset", () => {
+  const stability = {
+    status: "RESET",
+    previousDirection: "CONTINUE",
+    currentDirection: "REBUILD",
+    rationale: "Recovery path materially changed.",
+    confidence: "HIGH",
+  } as const;
+
+  const persistence = getRecoveryDirectionPersistence(stability, 9);
+
+  assert.equal(persistence.status, "RESET");
+  assert.equal(persistence.direction, "REBUILD");
+  assert.equal(persistence.consecutiveCycles, 1);
+});
 
 test("direction stability is initial without previous direction", () => {
   const direction = {

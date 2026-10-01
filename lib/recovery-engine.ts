@@ -215,6 +215,14 @@ export type RecoveryDirectionStability = {
   confidence: RecoveryDirection["confidence"];
 };
 
+export type RecoveryDirectionPersistence = {
+  direction: RecoveryDirection["direction"];
+  consecutiveCycles: number;
+  status: "NEW" | "PERSISTING" | "RESET";
+  rationale: string;
+  confidence: RecoveryDirection["confidence"];
+};
+
 export type RecoveryActionEffect = {
   status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
   headline: string;
@@ -326,6 +334,7 @@ export type RecoveryEngineInput = {
     completedAt?: string | null;
   }>;
   previousRecoveryDirection?: RecoveryDirection["direction"] | null;
+  previousRecoveryDirectionCycles?: number;
 };
 
 export type RecentProgression = {
@@ -994,6 +1003,7 @@ export type RecoveryEngineResult = {
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
+  recoveryDirectionPersistence: RecoveryDirectionPersistence;
   actions: RecoveryAction[];
   transition: RecoveryTransition;
   recentProgression: RecentProgression | null;
@@ -5403,6 +5413,49 @@ export function getRecoveryDirectionStability(
   };
 }
 
+export function getRecoveryDirectionPersistence(
+  stability: RecoveryDirectionStability,
+  previousRecoveryDirectionCycles?: number,
+): RecoveryDirectionPersistence {
+  const previousCycles = Math.max(
+    0,
+    Math.floor(previousRecoveryDirectionCycles ?? 0),
+  );
+
+  if (stability.status === "STABLE") {
+    return {
+      direction: stability.currentDirection,
+      consecutiveCycles: previousCycles + 1,
+      status: "PERSISTING",
+      rationale:
+        "The recovery direction is unchanged, so its persistence continues across recovery cycles.",
+      confidence: stability.confidence,
+    };
+  }
+
+  if (stability.status === "RESET") {
+    return {
+      direction: stability.currentDirection,
+      consecutiveCycles: 1,
+      status: "RESET",
+      rationale:
+        "The recovery direction crossed a materially different path, so directional persistence has been reset.",
+      confidence: stability.confidence,
+    };
+  }
+
+  return {
+    direction: stability.currentDirection,
+    consecutiveCycles: 1,
+    status: "NEW",
+    rationale:
+      stability.status === "INITIAL"
+        ? "This is the first available recovery direction, so persistence begins at one cycle."
+        : "The recovery direction changed, so persistence starts again from one cycle.",
+    confidence: stability.confidence,
+  };
+}
+
 export function calculateRecovery(
   input: RecoveryEngineInput
 ): RecoveryEngineResult {
@@ -5518,6 +5571,12 @@ export function calculateRecovery(
     recoveryDirectionMemory,
   );
 
+  const recoveryDirectionPersistence =
+    getRecoveryDirectionPersistence(
+      recoveryDirectionStability,
+      input.previousRecoveryDirectionCycles,
+    );
+
 
   const recoveryDecision = getRecoveryDecision(
     input,
@@ -5602,6 +5661,7 @@ export function calculateRecovery(
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,
+    recoveryDirectionPersistence,
     actions,
     transition: getTransition(input, state),
     recentProgression,
