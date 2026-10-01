@@ -188,6 +188,12 @@ type RecoveryEngineResult = {
     confidence: "HIGH" | "MEDIUM" | "LOW";
   };
 
+  recoveryCycleState: {
+    status: "CONTINUE" | "REASSESS" | "RESET";
+    reason: string;
+    source: "HOLD" | "REASSESS" | "PERSISTENCE_RESET";
+  };
+
   recoveryDirection: {
     direction:
       | "CONTINUE"
@@ -2028,6 +2034,34 @@ export default function DashboardPage() {
                     </p>
                     <p className="mt-2 text-sm font-bold text-[#111]">
                       {recoveryEngine.recoveryRecalibration.nextStep}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 rounded-xl border border-[#deded8] p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                          Recovery cycle
+                        </p>
+                        <p className="mt-2 text-lg font-bold tracking-tight text-[#111]">
+                          {recoveryEngine.recoveryCycleState.status}
+                        </p>
+                      </div>
+                      <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#888880]">
+                        {recoveryEngine.recoveryCycleState.source}
+                      </p>
+                    </div>
+
+                    <p className="mt-3 text-sm leading-6 text-[#66665f]">
+                      {recoveryEngine.recoveryCycleState.reason}
+                    </p>
+
+                    <p className="mt-3 text-sm font-semibold leading-6 text-[#111]">
+                      {recoveryEngine.recoveryCycleState.status === "CONTINUE"
+                        ? "Continue the established recovery path."
+                        : recoveryEngine.recoveryCycleState.status === "REASSESS"
+                          ? "Reconsider the current recovery decision and strategy before continuing."
+                          : "Discard assumptions carried forward from the previous recovery direction."}
                     </p>
                   </div>
 
