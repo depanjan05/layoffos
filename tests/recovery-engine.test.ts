@@ -14,6 +14,7 @@ import {
   getRecoveryCycleMemory,
   getRecoveryCycleTransition,
   getRecoveryCycleTransitionMemory,
+  getRecoveryCycleTransitionPattern,
   getRecoveryDirection,
   getRecoveryDirectionMemory,
   getRecoveryDirectionStability,
@@ -6196,4 +6197,121 @@ test("recovery cycle transition memory distinguishes initial from repeated conte
 
   assert.equal(initial.repeated, false);
   assert.equal(repeated.repeated, true);
+});
+
+
+test("recovery cycle transition pattern establishes initial context", () => {
+  const pattern = getRecoveryCycleTransitionPattern(
+    null,
+    "INITIAL",
+  );
+
+  assert.equal(pattern.transition, "INITIAL");
+  assert.equal(pattern.occurrences, 1);
+  assert.equal(pattern.repeated, false);
+  assert.equal(pattern.pattern, "NONE");
+});
+
+test("recovery cycle transition pattern becomes repeating on second occurrence", () => {
+  const pattern = getRecoveryCycleTransitionPattern(
+    {
+      transition: "UNCHANGED",
+      occurrences: 1,
+      repeated: false,
+      pattern: "NONE",
+      rationale: "Initial transition.",
+    },
+    "UNCHANGED",
+  );
+
+  assert.equal(pattern.transition, "UNCHANGED");
+  assert.equal(pattern.occurrences, 2);
+  assert.equal(pattern.repeated, true);
+  assert.equal(pattern.pattern, "REPEATING");
+});
+
+test("recovery cycle transition pattern becomes persistent on third occurrence", () => {
+  const pattern = getRecoveryCycleTransitionPattern(
+    {
+      transition: "REGRESSED",
+      occurrences: 2,
+      repeated: true,
+      pattern: "REPEATING",
+      rationale: "Repeated regression.",
+    },
+    "REGRESSED",
+  );
+
+  assert.equal(pattern.transition, "REGRESSED");
+  assert.equal(pattern.occurrences, 3);
+  assert.equal(pattern.repeated, true);
+  assert.equal(pattern.pattern, "PERSISTENT");
+});
+
+test("recovery cycle transition pattern remains persistent after additional repetition", () => {
+  const pattern = getRecoveryCycleTransitionPattern(
+    {
+      transition: "REGRESSED",
+      occurrences: 3,
+      repeated: true,
+      pattern: "PERSISTENT",
+      rationale: "Persistent regression.",
+    },
+    "REGRESSED",
+  );
+
+  assert.equal(pattern.occurrences, 4);
+  assert.equal(pattern.repeated, true);
+  assert.equal(pattern.pattern, "PERSISTENT");
+});
+
+test("recovery cycle transition pattern resets when transition changes", () => {
+  const pattern = getRecoveryCycleTransitionPattern(
+    {
+      transition: "REGRESSED",
+      occurrences: 3,
+      repeated: true,
+      pattern: "PERSISTENT",
+      rationale: "Persistent regression.",
+    },
+    "PROGRESSED",
+  );
+
+  assert.equal(pattern.transition, "PROGRESSED");
+  assert.equal(pattern.occurrences, 1);
+  assert.equal(pattern.repeated, false);
+  assert.equal(pattern.pattern, "NONE");
+});
+
+test("recovery cycle transition pattern tracks repeated regression", () => {
+  const pattern = getRecoveryCycleTransitionPattern(
+    {
+      transition: "REGRESSED",
+      occurrences: 1,
+      repeated: false,
+      pattern: "NONE",
+      rationale: "Initial regression.",
+    },
+    "REGRESSED",
+  );
+
+  assert.equal(pattern.pattern, "REPEATING");
+  assert.match(pattern.rationale, /REGRESSED/);
+});
+
+test("recovery cycle transition pattern tracks repeated progression", () => {
+  const pattern = getRecoveryCycleTransitionPattern(
+    {
+      transition: "PROGRESSED",
+      occurrences: 2,
+      repeated: true,
+      pattern: "REPEATING",
+      rationale: "Repeated progression.",
+    },
+    "PROGRESSED",
+  );
+
+  assert.equal(pattern.occurrences, 3);
+  assert.equal(pattern.pattern, "PERSISTENT");
+  assert.match(pattern.rationale, /persistent/);
 });

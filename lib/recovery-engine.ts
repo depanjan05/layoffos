@@ -211,6 +211,14 @@ export type RecoveryCycleTransitionMemory = {
   rationale: string;
 };
 
+export type RecoveryCycleTransitionPattern = {
+  transition: RecoveryCycleTransition["transition"];
+  occurrences: number;
+  repeated: boolean;
+  pattern: "NONE" | "REPEATING" | "PERSISTENT";
+  rationale: string;
+};
+
 export type RecoveryDirection = {
   direction:
     | "CONTINUE"
@@ -372,6 +380,7 @@ export type RecoveryEngineInput = {
   previousRecoveryCycleTransition?:
     | RecoveryCycleTransition["transition"]
     | null;
+  previousRecoveryCycleTransitionPattern?: RecoveryCycleTransitionPattern | null;
 };
 
 export type RecentProgression = {
@@ -1041,6 +1050,7 @@ export type RecoveryEngineResult = {
   recoveryCycleMemory: RecoveryCycleMemory;
   recoveryCycleTransition: RecoveryCycleTransition;
   recoveryCycleTransitionMemory: RecoveryCycleTransitionMemory;
+  recoveryCycleTransitionPattern: RecoveryCycleTransitionPattern;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3371,6 +3381,45 @@ export function getRecoveryCycleTransitionMemory(
     repeated: false,
     rationale:
       `The previous recovery cycle transition was ${previous}, but the current transition is ${currentTransition}, so the transition pattern has changed.`,
+  };
+}
+
+export function getRecoveryCycleTransitionPattern(
+  previousPattern: RecoveryCycleTransitionPattern | null | undefined,
+  currentTransition: RecoveryCycleTransition["transition"],
+): RecoveryCycleTransitionPattern {
+  const previous = previousPattern ?? null;
+
+  if (previous === null || previous.transition !== currentTransition) {
+    return {
+      transition: currentTransition,
+      occurrences: 1,
+      repeated: false,
+      pattern: "NONE",
+      rationale:
+        previous === null
+          ? "No previous recovery cycle transition pattern is available, so the current transition establishes the initial pattern context."
+          : `The previous transition pattern was ${previous.transition}, but the current transition is ${currentTransition}, so the occurrence count resets for the new transition.`,
+    };
+  }
+
+  const occurrences = previous.occurrences + 1;
+  const pattern =
+    occurrences >= 3
+      ? "PERSISTENT"
+      : occurrences >= 2
+        ? "REPEATING"
+        : "NONE";
+
+  return {
+    transition: currentTransition,
+    occurrences,
+    repeated: occurrences >= 2,
+    pattern,
+    rationale:
+      pattern === "PERSISTENT"
+        ? `The recovery cycle transition ${currentTransition} has now occurred ${occurrences} consecutive times, so the transition pattern is persistent.`
+        : `The recovery cycle transition ${currentTransition} has now occurred ${occurrences} consecutive times, so the transition pattern is repeating.`,
   };
 }
 
@@ -6043,6 +6092,12 @@ export function calculateRecovery(
       recoveryCycleTransition.transition,
     );
 
+  const recoveryCycleTransitionPattern =
+    getRecoveryCycleTransitionPattern(
+      input.previousRecoveryCycleTransitionPattern,
+      recoveryCycleTransition.transition,
+    );
+
   return {
     state,
     applicationActionEvents:
@@ -6078,6 +6133,7 @@ export function calculateRecovery(
     recoveryCycleMemory,
     recoveryCycleTransition,
     recoveryCycleTransitionMemory,
+    recoveryCycleTransitionPattern,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,
