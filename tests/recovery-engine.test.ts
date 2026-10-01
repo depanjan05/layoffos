@@ -3657,6 +3657,129 @@ test("persistence-aware recovery strategy resets assumptions after directional r
   );
 });
 
+test("persistence-aware recovery execution preserves an established direction", () => {
+  const plan = getRecoveryExecutionPlan(
+    {
+      decision: "Prioritize interview progression",
+      objective: "Advance the strongest active interview opportunity.",
+      evidence: ["Active interview is progressing."],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      strategy: "Convert interviews into late-stage opportunities",
+      objective: "Advance the strongest active interview opportunity.",
+      approach: ["Prepare for the next interview stage"],
+      guardrails: [],
+      successSignals: ["Interview progresses"],
+      confidence: "HIGH",
+    },
+    {
+      direction: "INTENSIFY",
+      rationale: "The active opportunity is progressing.",
+      evidence: ["Interview progression is improving."],
+      source: "ADVANCEMENT",
+      confidence: "HIGH",
+    },
+    {
+      direction: "INTENSIFY",
+      consecutiveCycles: 4,
+      status: "PERSISTING",
+      rationale: "The direction has persisted.",
+      confidence: "HIGH",
+    },
+  );
+
+  assert.equal(
+    plan.avoidActions.some((item) =>
+      item.includes("4 consecutive cycles"),
+    ),
+    true,
+  );
+});
+
+test("persistence-aware recovery execution avoids expanding a new direction", () => {
+  const plan = getRecoveryExecutionPlan(
+    {
+      decision: "Build recovery pipeline",
+      objective: "Create sufficient qualified recovery opportunities.",
+      evidence: [],
+      constraints: [],
+      confidence: "LOW",
+    },
+    {
+      strategy: "Establish sufficient qualified pipeline",
+      objective: "Create sufficient qualified recovery opportunities.",
+      approach: ["Create new qualified application opportunities"],
+      guardrails: [],
+      successSignals: ["Qualified pipeline increases"],
+      confidence: "LOW",
+    },
+    {
+      direction: "CONTINUE",
+      rationale: "Evidence is insufficient.",
+      evidence: [],
+      source: "INSUFFICIENT",
+      confidence: "LOW",
+    },
+    {
+      direction: "CONTINUE",
+      consecutiveCycles: 1,
+      status: "NEW",
+      rationale: "The direction is newly established.",
+      confidence: "LOW",
+    },
+  );
+
+  assert.equal(
+    plan.avoidActions.some((item) =>
+      item.includes("newly established"),
+    ),
+    true,
+  );
+});
+
+test("persistence-aware recovery execution resets assumptions after directional reset", () => {
+  const plan = getRecoveryExecutionPlan(
+    {
+      decision: "Rebuild the recovery pipeline",
+      objective: "Replace lost opportunity capacity.",
+      evidence: ["An active opportunity closed."],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      strategy: "Replace lost opportunity capacity",
+      objective: "Replace lost opportunity capacity.",
+      approach: ["Create new qualified application opportunities"],
+      guardrails: [],
+      successSignals: ["Replacement opportunity capacity exists"],
+      confidence: "HIGH",
+    },
+    {
+      direction: "REBUILD",
+      rationale: "The pipeline requires replacement capacity.",
+      evidence: ["An active opportunity closed."],
+      source: "CLOSURE",
+      confidence: "HIGH",
+    },
+    {
+      direction: "REBUILD",
+      consecutiveCycles: 1,
+      status: "RESET",
+      rationale: "The previous path was materially reset.",
+      confidence: "HIGH",
+    },
+  );
+
+  assert.equal(
+    plan.avoidActions.some((item) =>
+      item.includes("reset path"),
+    ),
+    true,
+  );
+});
+
 test("recovery execution plan completes the recovery transition", () => {
   const decision = {
     decision: "Close out recovery",

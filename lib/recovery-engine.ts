@@ -2877,56 +2877,97 @@ export function getRecoveryExecutionPlan(
   decision: RecoveryDecision,
   strategy: RecoveryStrategy,
   recoveryDirection?: RecoveryDirection,
+  recoveryDirectionPersistence?: RecoveryDirectionPersistence,
 ): RecoveryExecutionPlan {
   const basePlan = getBaseRecoveryExecutionPlan(decision, strategy);
 
-  if (
-    recoveryDirection === undefined ||
-    recoveryDirection.direction === "CONTINUE"
-  ) {
+  if (recoveryDirection === undefined) {
     return basePlan;
   }
 
+  let plan: RecoveryExecutionPlan = basePlan;
+
   switch (recoveryDirection.direction) {
     case "CLOSEOUT":
-      return {
+      plan = {
         ...basePlan,
         avoidActions: [
           ...basePlan.avoidActions,
           "Closeout direction: do not expand recovery activity unless the transition becomes unstable.",
         ],
       };
+      break;
 
     case "REBUILD":
-      return {
+      plan = {
         ...basePlan,
         avoidActions: [
           ...basePlan.avoidActions,
           "Rebuild direction: replace lost opportunity capacity before relying on the remaining pipeline.",
         ],
       };
+      break;
 
     case "SHIFT":
-      return {
+      plan = {
         ...basePlan,
         avoidActions: [
           ...basePlan.avoidActions,
           "Shift direction: change the recovery approach before increasing activity volume.",
         ],
       };
+      break;
 
     case "INTENSIFY":
-      return {
+      plan = {
         ...basePlan,
         avoidActions: [
           ...basePlan.avoidActions,
           "Intensify direction: concentrate effort on the active recovery opportunity before expanding search.",
         ],
       };
+      break;
+
+    case "CONTINUE":
+      plan = basePlan;
+      break;
 
     default:
-      return basePlan;
+      plan = basePlan;
+      break;
   }
+
+  if (recoveryDirectionPersistence === undefined) {
+    return plan;
+  }
+
+  if (recoveryDirectionPersistence.status === "PERSISTING") {
+    return {
+      ...plan,
+      avoidActions: [
+        ...plan.avoidActions,
+        `Persistence-aware execution: preserve the ${recoveryDirection.direction} direction while it remains supported across ${recoveryDirectionPersistence.consecutiveCycles} consecutive cycles.`,
+      ],
+    };
+  }
+
+  if (recoveryDirectionPersistence.status === "RESET") {
+    return {
+      ...plan,
+      avoidActions: [
+        ...plan.avoidActions,
+        "Persistence-aware execution: treat the current direction as a reset path and do not carry forward execution assumptions from the previous direction.",
+      ],
+    };
+  }
+
+  return {
+    ...plan,
+    avoidActions: [
+      ...plan.avoidActions,
+      "Persistence-aware execution: treat the current direction as newly established and avoid expanding execution solely on the basis of one cycle.",
+    ],
+  };
 }
 
 export type RecoveryExecutionAction = {
@@ -5701,6 +5742,7 @@ export function calculateRecovery(
     recoveryDecision,
     recoveryStrategy,
     recoveryDirection,
+    recoveryDirectionPersistence,
   );
 
   const actions = getActions(
