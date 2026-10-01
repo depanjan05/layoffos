@@ -230,6 +230,16 @@ export type RecoveryCycleTransitionPatternConsequence = {
   rationale: string;
 };
 
+export type RecoveryCycleTransitionPatternConsequenceMemory = {
+  previousConsequence:
+    | RecoveryCycleTransitionPatternConsequence["consequence"]
+    | null;
+  currentConsequence:
+    RecoveryCycleTransitionPatternConsequence["consequence"];
+  repeated: boolean;
+  rationale: string;
+};
+
 
 export type RecoveryCycleTransitionPatternMemory = {
   previousPattern: RecoveryCycleTransitionPattern["pattern"] | null;
@@ -408,6 +418,9 @@ export type RecoveryEngineInput = {
     | RecoveryCycleTransition["transition"]
     | null;
   previousRecoveryCycleTransitionPattern?: RecoveryCycleTransitionPattern | null;
+  previousRecoveryCycleTransitionPatternConsequence?:
+    | RecoveryCycleTransitionPatternConsequence["consequence"]
+    | null;
 };
 
 export type RecentProgression = {
@@ -1082,6 +1095,8 @@ export type RecoveryEngineResult = {
   recoveryCycleTransitionPatternPersistence: RecoveryCycleTransitionPatternPersistence;
   recoveryCycleTransitionPatternResponse: RecoveryCycleTransitionPatternResponse;
   recoveryCycleTransitionPatternConsequence: RecoveryCycleTransitionPatternConsequence;
+  recoveryCycleTransitionPatternConsequenceMemory:
+    RecoveryCycleTransitionPatternConsequenceMemory;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3527,6 +3542,46 @@ export function getRecoveryCycleTransitionPatternConsequence(
     consequence: "NONE",
     rationale:
       "The recovery cycle response is NONE, so no recovery cycle consequence is triggered.",
+  };
+}
+
+
+export function getRecoveryCycleTransitionPatternConsequenceMemory(
+  previousConsequence:
+    | RecoveryCycleTransitionPatternConsequence["consequence"]
+    | null
+    | undefined,
+  currentConsequence:
+    RecoveryCycleTransitionPatternConsequence["consequence"],
+): RecoveryCycleTransitionPatternConsequenceMemory {
+  const previous = previousConsequence ?? null;
+
+  if (previous === null) {
+    return {
+      previousConsequence: null,
+      currentConsequence,
+      repeated: false,
+      rationale:
+        "No previous recovery cycle transition pattern consequence is available, so the current consequence establishes the initial consequence context.",
+    };
+  }
+
+  if (previous === currentConsequence) {
+    return {
+      previousConsequence: previous,
+      currentConsequence,
+      repeated: true,
+      rationale:
+        `The previous recovery cycle transition pattern consequence was ${previous}, and the current consequence is also ${currentConsequence}, so the consequence is carried forward.`,
+    };
+  }
+
+  return {
+    previousConsequence: previous,
+    currentConsequence,
+    repeated: false,
+    rationale:
+      `The previous recovery cycle transition pattern consequence was ${previous}, but the current consequence is ${currentConsequence}, so the consequence has changed.`,
   };
 }
 
@@ -6321,6 +6376,12 @@ export function calculateRecovery(
       recoveryCycleTransitionPatternResponse,
     );
 
+  const recoveryCycleTransitionPatternConsequenceMemory =
+    getRecoveryCycleTransitionPatternConsequenceMemory(
+      input.previousRecoveryCycleTransitionPatternConsequence,
+      recoveryCycleTransitionPatternConsequence.consequence,
+    );
+
   return {
     state,
     applicationActionEvents:
@@ -6361,6 +6422,7 @@ export function calculateRecovery(
     recoveryCycleTransitionPatternPersistence,
     recoveryCycleTransitionPatternResponse,
     recoveryCycleTransitionPatternConsequence,
+    recoveryCycleTransitionPatternConsequenceMemory,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,

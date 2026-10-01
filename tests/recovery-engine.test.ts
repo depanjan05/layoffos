@@ -34,6 +34,7 @@ import {
   getWeeklyPlanTaskEffect,
   type RecentProgression,
   type RecoveryEngineInput,
+  getRecoveryCycleTransitionPatternConsequenceMemory,
 } from "../lib/recovery-engine.ts";
 
 function progression(
@@ -6678,4 +6679,79 @@ test("recovery cycle transition pattern memory detects PERSISTENT to NONE", () =
   assert.equal(result.previousPattern, "PERSISTENT");
   assert.equal(result.currentPattern, "NONE");
   assert.equal(result.repeated, false);
+});
+
+
+test("V1.74 consequence memory establishes initial context", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceMemory(
+    null,
+    "NONE",
+  );
+
+  assert.equal(result.previousConsequence, null);
+  assert.equal(result.currentConsequence, "NONE");
+  assert.equal(result.repeated, false);
+});
+
+test("V1.74 consequence memory repeats identical consequence", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceMemory(
+    "MAINTAIN",
+    "MAINTAIN",
+  );
+
+  assert.equal(result.previousConsequence, "MAINTAIN");
+  assert.equal(result.currentConsequence, "MAINTAIN");
+  assert.equal(result.repeated, true);
+});
+
+test("V1.74 consequence memory detects changed consequence", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceMemory(
+    "NONE",
+    "MAINTAIN",
+  );
+
+  assert.equal(result.previousConsequence, "NONE");
+  assert.equal(result.currentConsequence, "MAINTAIN");
+  assert.equal(result.repeated, false);
+});
+
+test("V1.74 consequence memory preserves NONE identity", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceMemory(
+    "NONE",
+    "NONE",
+  );
+
+  assert.equal(result.currentConsequence, "NONE");
+  assert.equal(result.repeated, true);
+});
+
+test("V1.74 consequence memory preserves MAINTAIN identity", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceMemory(
+    "MAINTAIN",
+    "MAINTAIN",
+  );
+
+  assert.equal(result.currentConsequence, "MAINTAIN");
+  assert.equal(result.repeated, true);
+});
+
+test("V1.74 consequence memory preserves REASSESS identity", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceMemory(
+    "REASSESS",
+    "REASSESS",
+  );
+
+  assert.equal(result.currentConsequence, "REASSESS");
+  assert.equal(result.repeated, true);
+});
+
+test("V1.74 consequence memory preserves RESET identity and rationale", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceMemory(
+    "RESET",
+    "RESET",
+  );
+
+  assert.equal(result.currentConsequence, "RESET");
+  assert.equal(result.repeated, true);
+  assert.match(result.rationale, /RESET/);
 });
