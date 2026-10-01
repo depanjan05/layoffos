@@ -342,6 +342,14 @@ export type RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponse
   rationale: string;
 };
 
+export type RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse = {
+  consequence:
+    RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence["consequence"];
+  persistent: boolean;
+  response: "NONE" | "MAINTAIN" | "REASSESS" | "RESET";
+  rationale: string;
+};
+
 export function getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence(
   previousPersistence:
     | RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence
@@ -373,6 +381,61 @@ export function getRecoveryCycleTransitionPatternConsequenceResponseConsequenceR
     persistent,
     rationale:
       `The previous recovery cycle transition pattern consequence response consequence response persistence consequence was ${currentConsequence}, and the current consequence is also ${currentConsequence}, so persistence increases to ${occurrences} occurrence${occurrences === 1 ? "" : "s"}.`,
+  };
+}
+
+export function getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse(
+  persistence:
+    RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence,
+): RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse {
+  const { consequence, persistent } = persistence;
+
+  if (!persistent) {
+    return {
+      consequence,
+      persistent,
+      response: "NONE",
+      rationale:
+        `The persistence consequence is ${consequence}, but it is not yet persistent, so no persistence consequence response is triggered.`,
+    };
+  }
+
+  if (consequence === "MAINTAIN") {
+    return {
+      consequence,
+      persistent,
+      response: "MAINTAIN",
+      rationale:
+        "The persistent MAINTAIN consequence maps to the MAINTAIN persistence consequence response.",
+    };
+  }
+
+  if (consequence === "REASSESS") {
+    return {
+      consequence,
+      persistent,
+      response: "REASSESS",
+      rationale:
+        "The persistent REASSESS consequence maps to the REASSESS persistence consequence response.",
+    };
+  }
+
+  if (consequence === "RESET") {
+    return {
+      consequence,
+      persistent,
+      response: "RESET",
+      rationale:
+        "The persistent RESET consequence maps to the RESET persistence consequence response.",
+    };
+  }
+
+  return {
+    consequence,
+    persistent,
+    response: "NONE",
+    rationale:
+      "The persistent consequence does not map to an operational persistence consequence response, so no response is triggered.",
   };
 }
 
@@ -895,6 +958,9 @@ export type RecoveryEngineInput = {
     | null;
   previousRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence?:
     | RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence
+    | null;
+  previousRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse?:
+    | RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse["response"]
     | null;
   previousRecoveryCycleTransitionPatternConsequenceResponseConsequencePersistence?:
     | RecoveryCycleTransitionPatternConsequenceResponseConsequencePersistence
@@ -1605,6 +1671,8 @@ export type RecoveryEngineResult = {
     RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequenceMemory;
   recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence:
     RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence;
+  recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse:
+    RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse;
 recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -7166,6 +7234,11 @@ export function calculateRecovery(
       recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence.consequence,
     );
 
+  const recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse(
+      recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence,
+    );
+
   const recoveryCycleTransitionPatternConsequenceResponseConsequenceMemory =
     getRecoveryCycleTransitionPatternConsequenceResponseConsequenceMemory(
       input.previousRecoveryCycleTransitionPatternConsequenceResponseConsequence,
@@ -7181,6 +7254,7 @@ export function calculateRecovery(
     recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence,
     recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequenceMemory,
     recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence,
+    recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse,
 
         recoveryCycleTransitionPatternConsequenceResponseConsequenceMemory,
 recoveryCycleTransitionPatternConsequenceResponsePersistence,
@@ -7641,4 +7715,3 @@ export function getApplicationActionMemory(
     evidence,
   };
 }
-
