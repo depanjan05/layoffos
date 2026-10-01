@@ -2565,57 +2565,99 @@ function getBaseRecoveryStrategy(
 export function getRecoveryStrategy(
   decision: RecoveryDecision,
   recoveryDirection?: RecoveryDirection,
+  recoveryDirectionPersistence?: RecoveryDirectionPersistence,
 ): RecoveryStrategy {
   const baseStrategy = getBaseRecoveryStrategy(decision);
 
-  if (
-    recoveryDirection === undefined ||
-    recoveryDirection.direction === "CONTINUE"
-  ) {
+  if (recoveryDirection === undefined) {
     return baseStrategy;
   }
 
+  let strategy: RecoveryStrategy = baseStrategy;
+
   switch (recoveryDirection.direction) {
     case "CLOSEOUT":
-      return {
+      strategy = {
         ...baseStrategy,
         guardrails: [
           ...baseStrategy.guardrails,
           "Closeout direction: do not expand recovery activity unless the transition becomes unstable.",
         ],
       };
+      break;
 
     case "REBUILD":
-      return {
+      strategy = {
         ...baseStrategy,
         guardrails: [
           ...baseStrategy.guardrails,
           "Rebuild direction: replace lost opportunity capacity before relying on the existing pipeline.",
         ],
       };
+      break;
 
     case "SHIFT":
-      return {
+      strategy = {
         ...baseStrategy,
         guardrails: [
           ...baseStrategy.guardrails,
           "Shift direction: change the recovery approach before increasing activity volume.",
         ],
       };
+      break;
 
     case "INTENSIFY":
-      return {
+      strategy = {
         ...baseStrategy,
         guardrails: [
           ...baseStrategy.guardrails,
           "Intensify direction: concentrate effort on the active recovery opportunity before expanding search.",
         ],
       };
+      break;
+
+    case "CONTINUE":
+      strategy = baseStrategy;
+      break;
 
     default:
-      return baseStrategy;
+      strategy = baseStrategy;
+      break;
   }
+
+  if (recoveryDirectionPersistence === undefined) {
+    return strategy;
+  }
+
+  if (recoveryDirectionPersistence.status === "PERSISTING") {
+    return {
+      ...strategy,
+      guardrails: [
+        ...strategy.guardrails,
+        `Persistence-aware strategy: preserve the ${recoveryDirection.direction} direction while it remains supported across ${recoveryDirectionPersistence.consecutiveCycles} consecutive cycles.`,
+      ],
+    };
+  }
+
+  if (recoveryDirectionPersistence.status === "RESET") {
+    return {
+      ...strategy,
+      guardrails: [
+        ...strategy.guardrails,
+        "Persistence-aware strategy: treat the current direction as a reset path and do not carry forward assumptions from the previous direction.",
+      ],
+    };
+  }
+
+  return {
+    ...strategy,
+    guardrails: [
+      ...strategy.guardrails,
+      "Persistence-aware strategy: treat the current direction as newly established and avoid expanding the strategy solely on the basis of one cycle.",
+    ],
+  };
 }
+
 
 function getBaseRecoveryExecutionPlan(
   decision: RecoveryDecision,
@@ -5652,6 +5694,7 @@ export function calculateRecovery(
   const recoveryStrategy = getRecoveryStrategy(
     recoveryDecision,
     recoveryDirection,
+    recoveryDirectionPersistence,
   );
 
   const recoveryExecutionPlan = getRecoveryExecutionPlan(

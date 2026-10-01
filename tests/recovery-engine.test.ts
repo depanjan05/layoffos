@@ -3558,6 +3558,105 @@ test("recovery engine exposes the strategy derived from its recovery decision", 
   assert.ok(result.recoveryStrategy.successSignals.length > 0);
 });
 
+test("persistence-aware recovery strategy preserves an established direction", () => {
+  const strategy = getRecoveryStrategy(
+    {
+      decision: "Prioritize interview progression",
+      objective: "Advance the strongest active interview opportunity.",
+      evidence: ["Active interview is progressing."],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      direction: "INTENSIFY",
+      rationale: "The active opportunity is progressing.",
+      evidence: ["Interview progression is improving."],
+      source: "ADVANCEMENT",
+      confidence: "HIGH",
+    },
+    {
+      direction: "INTENSIFY",
+      consecutiveCycles: 3,
+      status: "PERSISTING",
+      rationale: "The direction has persisted.",
+      confidence: "HIGH",
+    },
+  );
+
+  assert.equal(
+    strategy.guardrails.some((item) =>
+      item.includes("3 consecutive cycles"),
+    ),
+    true,
+  );
+});
+
+test("persistence-aware recovery strategy avoids overexpanding a new direction", () => {
+  const strategy = getRecoveryStrategy(
+    {
+      decision: "Build recovery pipeline",
+      objective: "Create sufficient qualified recovery opportunities.",
+      evidence: [],
+      constraints: [],
+      confidence: "LOW",
+    },
+    {
+      direction: "CONTINUE",
+      rationale: "Evidence is insufficient.",
+      evidence: [],
+      source: "INSUFFICIENT",
+      confidence: "LOW",
+    },
+    {
+      direction: "CONTINUE",
+      consecutiveCycles: 1,
+      status: "NEW",
+      rationale: "The direction is newly established.",
+      confidence: "LOW",
+    },
+  );
+
+  assert.equal(
+    strategy.guardrails.some((item) =>
+      item.includes("newly established"),
+    ),
+    true,
+  );
+});
+
+test("persistence-aware recovery strategy resets assumptions after directional reset", () => {
+  const strategy = getRecoveryStrategy(
+    {
+      decision: "Rebuild the recovery pipeline",
+      objective: "Replace lost opportunity capacity.",
+      evidence: ["An active opportunity closed."],
+      constraints: [],
+      confidence: "HIGH",
+    },
+    {
+      direction: "REBUILD",
+      rationale: "The pipeline requires replacement capacity.",
+      evidence: ["An active opportunity closed."],
+      source: "CLOSURE",
+      confidence: "HIGH",
+    },
+    {
+      direction: "REBUILD",
+      consecutiveCycles: 1,
+      status: "RESET",
+      rationale: "The previous path was materially reset.",
+      confidence: "HIGH",
+    },
+  );
+
+  assert.equal(
+    strategy.guardrails.some((item) =>
+      item.includes("reset path"),
+    ),
+    true,
+  );
+});
+
 test("recovery execution plan completes the recovery transition", () => {
   const decision = {
     decision: "Close out recovery",
