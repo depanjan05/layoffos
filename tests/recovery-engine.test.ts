@@ -12,6 +12,7 @@ import {
   getRecoveryRecalibration,
   getRecoveryDirection,
   getRecoveryDirectionMemory,
+  getRecoveryDirectionStability,
   calculateRecovery,
   getPipelineHealth,
   getProgressionSignal,
@@ -4366,6 +4367,74 @@ test("recovery recalibration holds after recovery", () => {
   assert.match(recalibration.trigger, /recovered/i);
 });
 
+
+test("direction stability is initial without previous direction", () => {
+  const direction = {
+    direction: "CONTINUE",
+    rationale: "Continue the current recovery path.",
+    evidence: ["Current evidence supports continuation."],
+    source: "ADVANCEMENT",
+    confidence: "MEDIUM",
+  } as const;
+
+  const memory = getRecoveryDirectionMemory(null, direction);
+  const stability = getRecoveryDirectionStability(memory);
+
+  assert.equal(stability.status, "INITIAL");
+  assert.equal(stability.previousDirection, null);
+  assert.equal(stability.currentDirection, "CONTINUE");
+});
+
+test("direction stability is stable when direction is preserved", () => {
+  const direction = {
+    direction: "CONTINUE",
+    rationale: "Continue the current recovery path.",
+    evidence: ["Current evidence supports continuation."],
+    source: "ADVANCEMENT",
+    confidence: "MEDIUM",
+  } as const;
+
+  const memory = getRecoveryDirectionMemory("CONTINUE", direction);
+  const stability = getRecoveryDirectionStability(memory);
+
+  assert.equal(stability.status, "STABLE");
+  assert.equal(stability.previousDirection, "CONTINUE");
+  assert.equal(stability.currentDirection, "CONTINUE");
+});
+
+test("direction stability identifies an ordinary directional change", () => {
+  const direction = {
+    direction: "SHIFT",
+    rationale: "Change the current recovery approach.",
+    evidence: ["The current path weakened."],
+    source: "SETBACK",
+    confidence: "HIGH",
+  } as const;
+
+  const memory = getRecoveryDirectionMemory("CONTINUE", direction);
+  const stability = getRecoveryDirectionStability(memory);
+
+  assert.equal(stability.status, "CHANGED");
+  assert.equal(stability.previousDirection, "CONTINUE");
+  assert.equal(stability.currentDirection, "SHIFT");
+});
+
+test("direction stability identifies a material recovery reset", () => {
+  const direction = {
+    direction: "REBUILD",
+    rationale: "Rebuild the recovery pipeline.",
+    evidence: ["Recovery opportunity capacity was lost."],
+    source: "CLOSURE",
+    confidence: "HIGH",
+  } as const;
+
+  const memory = getRecoveryDirectionMemory("CONTINUE", direction);
+  const stability = getRecoveryDirectionStability(memory);
+
+  assert.equal(stability.status, "RESET");
+  assert.equal(stability.previousDirection, "CONTINUE");
+  assert.equal(stability.currentDirection, "REBUILD");
+});
 
 test("direction memory records a meaningful direction change", () => {
   const direction = getRecoveryDirection(

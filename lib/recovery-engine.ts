@@ -207,6 +207,14 @@ export type RecoveryDirectionMemory = {
 };
 
 
+export type RecoveryDirectionStability = {
+  status: "INITIAL" | "STABLE" | "CHANGED" | "RESET";
+  previousDirection: RecoveryDirection["direction"] | null;
+  currentDirection: RecoveryDirection["direction"];
+  rationale: string;
+  confidence: RecoveryDirection["confidence"];
+};
+
 export type RecoveryActionEffect = {
   status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
   headline: string;
@@ -985,6 +993,7 @@ export type RecoveryEngineResult = {
   recoveryRecalibration: RecoveryRecalibration;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
+  recoveryDirectionStability: RecoveryDirectionStability;
   actions: RecoveryAction[];
   transition: RecoveryTransition;
   recentProgression: RecentProgression | null;
@@ -5349,6 +5358,51 @@ export function getRecoveryDirectionMemory(
   };
 }
 
+export function getRecoveryDirectionStability(
+  memory: RecoveryDirectionMemory,
+): RecoveryDirectionStability {
+  if (memory.previousDirection === null) {
+    return {
+      status: "INITIAL",
+      previousDirection: null,
+      currentDirection: memory.currentDirection,
+      rationale:
+        "No previous recovery direction is available, so this is the initial directional state.",
+      confidence: memory.confidence,
+    };
+  }
+
+  if (!memory.changed) {
+    return {
+      status: "STABLE",
+      previousDirection: memory.previousDirection,
+      currentDirection: memory.currentDirection,
+      rationale:
+        "The recovery direction is unchanged from the available previous direction.",
+      confidence: memory.confidence,
+    };
+  }
+
+  const resetDirections = new Set<RecoveryDirection["direction"]>([
+    "CLOSEOUT",
+    "REBUILD",
+  ]);
+
+  const isReset =
+    resetDirections.has(memory.previousDirection) ||
+    resetDirections.has(memory.currentDirection);
+
+  return {
+    status: isReset ? "RESET" : "CHANGED",
+    previousDirection: memory.previousDirection,
+    currentDirection: memory.currentDirection,
+    rationale: isReset
+      ? "The recovery direction crossed a materially different recovery path, so the previous directional state should be treated as reset."
+      : "The recovery direction changed from the available previous direction.",
+    confidence: memory.confidence,
+  };
+}
+
 export function calculateRecovery(
   input: RecoveryEngineInput
 ): RecoveryEngineResult {
@@ -5460,6 +5514,10 @@ export function calculateRecovery(
     recoveryDirection,
   );
 
+  const recoveryDirectionStability = getRecoveryDirectionStability(
+    recoveryDirectionMemory,
+  );
+
 
   const recoveryDecision = getRecoveryDecision(
     input,
@@ -5543,6 +5601,7 @@ export function calculateRecovery(
     recoveryRecalibration,
     recoveryDirection,
     recoveryDirectionMemory,
+    recoveryDirectionStability,
     actions,
     transition: getTransition(input, state),
     recentProgression,
