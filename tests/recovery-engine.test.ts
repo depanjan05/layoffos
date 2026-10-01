@@ -15,6 +15,7 @@ import {
   getRecoveryCycleTransition,
   getRecoveryCycleTransitionMemory,
   getRecoveryCycleTransitionPattern,
+  getRecoveryCycleTransitionPatternMemory,
   getRecoveryDirection,
   getRecoveryDirectionMemory,
   getRecoveryDirectionStability,
@@ -6314,4 +6315,86 @@ test("recovery cycle transition pattern tracks repeated progression", () => {
   assert.equal(pattern.occurrences, 3);
   assert.equal(pattern.pattern, "PERSISTENT");
   assert.match(pattern.rationale, /persistent/);
+});
+
+
+test("recovery cycle transition pattern memory establishes initial context", () => {
+  const result = getRecoveryCycleTransitionPatternMemory(
+    null,
+    "NONE",
+  );
+
+  assert.deepEqual(result, {
+    previousPattern: null,
+    currentPattern: "NONE",
+    repeated: false,
+    rationale:
+      "No previous recovery cycle transition pattern is available, so the current pattern establishes the initial pattern context.",
+  });
+});
+
+test("recovery cycle transition pattern memory carries forward NONE", () => {
+  const result = getRecoveryCycleTransitionPatternMemory(
+    "NONE",
+    "NONE",
+  );
+
+  assert.equal(result.previousPattern, "NONE");
+  assert.equal(result.currentPattern, "NONE");
+  assert.equal(result.repeated, true);
+});
+
+test("recovery cycle transition pattern memory carries forward REPEATING", () => {
+  const result = getRecoveryCycleTransitionPatternMemory(
+    "REPEATING",
+    "REPEATING",
+  );
+
+  assert.equal(result.previousPattern, "REPEATING");
+  assert.equal(result.currentPattern, "REPEATING");
+  assert.equal(result.repeated, true);
+});
+
+test("recovery cycle transition pattern memory carries forward PERSISTENT", () => {
+  const result = getRecoveryCycleTransitionPatternMemory(
+    "PERSISTENT",
+    "PERSISTENT",
+  );
+
+  assert.equal(result.previousPattern, "PERSISTENT");
+  assert.equal(result.currentPattern, "PERSISTENT");
+  assert.equal(result.repeated, true);
+});
+
+test("recovery cycle transition pattern memory detects NONE to REPEATING", () => {
+  const result = getRecoveryCycleTransitionPatternMemory(
+    "NONE",
+    "REPEATING",
+  );
+
+  assert.equal(result.previousPattern, "NONE");
+  assert.equal(result.currentPattern, "REPEATING");
+  assert.equal(result.repeated, false);
+});
+
+test("recovery cycle transition pattern memory detects REPEATING to PERSISTENT", () => {
+  const result = getRecoveryCycleTransitionPatternMemory(
+    "REPEATING",
+    "PERSISTENT",
+  );
+
+  assert.equal(result.previousPattern, "REPEATING");
+  assert.equal(result.currentPattern, "PERSISTENT");
+  assert.equal(result.repeated, false);
+});
+
+test("recovery cycle transition pattern memory detects PERSISTENT to NONE", () => {
+  const result = getRecoveryCycleTransitionPatternMemory(
+    "PERSISTENT",
+    "NONE",
+  );
+
+  assert.equal(result.previousPattern, "PERSISTENT");
+  assert.equal(result.currentPattern, "NONE");
+  assert.equal(result.repeated, false);
 });

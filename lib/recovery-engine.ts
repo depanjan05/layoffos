@@ -211,6 +211,13 @@ export type RecoveryCycleTransitionMemory = {
   rationale: string;
 };
 
+export type RecoveryCycleTransitionPatternMemory = {
+  previousPattern: RecoveryCycleTransitionPattern["pattern"] | null;
+  currentPattern: RecoveryCycleTransitionPattern["pattern"];
+  repeated: boolean;
+  rationale: string;
+};
+
 export type RecoveryCycleTransitionPattern = {
   transition: RecoveryCycleTransition["transition"];
   occurrences: number;
@@ -1051,6 +1058,7 @@ export type RecoveryEngineResult = {
   recoveryCycleTransition: RecoveryCycleTransition;
   recoveryCycleTransitionMemory: RecoveryCycleTransitionMemory;
   recoveryCycleTransitionPattern: RecoveryCycleTransitionPattern;
+  recoveryCycleTransitionPatternMemory: RecoveryCycleTransitionPatternMemory;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3422,6 +3430,45 @@ export function getRecoveryCycleTransitionPattern(
         : `The recovery cycle transition ${currentTransition} has now occurred ${occurrences} consecutive times, so the transition pattern is repeating.`,
   };
 }
+
+export function getRecoveryCycleTransitionPatternMemory(
+  previousPattern:
+    | RecoveryCycleTransitionPattern["pattern"]
+    | null
+    | undefined,
+  currentPattern: RecoveryCycleTransitionPattern["pattern"],
+): RecoveryCycleTransitionPatternMemory {
+  const previous = previousPattern ?? null;
+
+  if (previous === null) {
+    return {
+      previousPattern: null,
+      currentPattern,
+      repeated: false,
+      rationale:
+        "No previous recovery cycle transition pattern is available, so the current pattern establishes the initial pattern context.",
+    };
+  }
+
+  if (previous === currentPattern) {
+    return {
+      previousPattern: previous,
+      currentPattern,
+      repeated: true,
+      rationale:
+        `The previous recovery cycle transition pattern was ${previous}, and the current pattern is also ${currentPattern}, so the pattern is carried forward.`,
+    };
+  }
+
+  return {
+    previousPattern: previous,
+    currentPattern,
+    repeated: false,
+    rationale:
+      `The previous recovery cycle transition pattern was ${previous}, but the current pattern is ${currentPattern}, so the pattern has changed.`,
+  };
+}
+
 
 export function getRecoveryRecalibration(
   state: RecoveryState,
@@ -6098,6 +6145,12 @@ export function calculateRecovery(
       recoveryCycleTransition.transition,
     );
 
+  const recoveryCycleTransitionPatternMemory =
+    getRecoveryCycleTransitionPatternMemory(
+      input.previousRecoveryCycleTransitionPattern?.pattern,
+      recoveryCycleTransitionPattern.pattern,
+    );
+
   return {
     state,
     applicationActionEvents:
@@ -6134,6 +6187,7 @@ export function calculateRecovery(
     recoveryCycleTransition,
     recoveryCycleTransitionMemory,
     recoveryCycleTransitionPattern,
+    recoveryCycleTransitionPatternMemory,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,
