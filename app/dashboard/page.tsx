@@ -1965,7 +1965,92 @@ export default function DashboardPage() {
               </div>
 
               {/* OUTCOME INTELLIGENCE */}
-              <div className="mt-7 rounded-2xl border border-[#deded8] p-5 sm:p-6">
+                              {/* RECOVERY RECALIBRATION */}
+                <div className="mt-7 rounded-2xl border border-[#deded8] p-5 sm:p-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="max-w-3xl">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
+                        Recovery recalibration
+                      </p>
+                      <h3 className="mt-2 text-xl font-bold tracking-tight text-[#111]">
+                        {recoveryEngine.recoveryRecalibration.signal}
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                        {recoveryEngine.recoveryRecalibration.trigger}
+                      </p>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#888880]">
+                        Confidence
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-[#111]">
+                        {recoveryEngine.recoveryRecalibration.confidence}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-xl border border-[#deded8] p-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                        Decision
+                      </p>
+                      <p className="mt-2 text-sm font-bold text-[#111]">
+                        {recoveryEngine.recoveryRecalibration.decisionStatus}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                        {recoveryEngine.recoveryRecalibration.decisionStatus ===
+                        "REASSESS"
+                          ? "The current recovery direction should be reassessed before expanding activity."
+                          : "The current recovery direction remains supported by the available evidence."}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-[#deded8] p-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                        Strategy
+                      </p>
+                      <p className="mt-2 text-sm font-bold text-[#111]">
+                        {recoveryEngine.recoveryRecalibration.strategyStatus}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-[#66665f]">
+                        {recoveryEngine.recoveryRecalibration.strategyStatus ===
+                        "REASSESS"
+                          ? "The recovery approach should be reconsidered before increasing execution."
+                          : "Continue the current recovery approach while the evidence remains supportive."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 rounded-xl border border-[#deded8] p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                      Next step
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-[#111]">
+                      {recoveryEngine.recoveryRecalibration.nextStep}
+                    </p>
+                  </div>
+
+                  <div className="mt-5 border-t border-[#deded8] pt-5">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
+                      Why
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      {recoveryEngine.recoveryRecalibration.rationale.map(
+                        (item) => (
+                          <p
+                            key={item}
+                            className="text-sm leading-6 text-[#66665f]"
+                          >
+                            {item}
+                          </p>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+<div className="mt-7 rounded-2xl border border-[#deded8] p-5 sm:p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="max-w-3xl">
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
