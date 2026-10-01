@@ -217,6 +217,13 @@ export type RecoveryCycleTransitionPatternPersistence = {
   persistent: boolean;
   rationale: string;
 };
+export type RecoveryCycleTransitionPatternResponse = {
+  pattern: RecoveryCycleTransitionPattern["pattern"];
+  persistent: boolean;
+  response: "NONE" | "CONTINUE" | "REASSESS" | "RESET";
+  rationale: string;
+};
+
 
 export type RecoveryCycleTransitionPatternMemory = {
   previousPattern: RecoveryCycleTransitionPattern["pattern"] | null;
@@ -1067,6 +1074,7 @@ export type RecoveryEngineResult = {
   recoveryCycleTransitionPattern: RecoveryCycleTransitionPattern;
   recoveryCycleTransitionPatternMemory: RecoveryCycleTransitionPatternMemory;
   recoveryCycleTransitionPatternPersistence: RecoveryCycleTransitionPatternPersistence;
+  recoveryCycleTransitionPatternResponse: RecoveryCycleTransitionPatternResponse;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3474,6 +3482,50 @@ export function getRecoveryCycleTransitionPatternMemory(
     repeated: false,
     rationale:
       `The previous recovery cycle transition pattern was ${previous}, but the current pattern is ${currentPattern}, so the pattern has changed.`,
+  };
+}
+
+export function getRecoveryCycleTransitionPatternResponse(
+  persistence: RecoveryCycleTransitionPatternPersistence,
+): RecoveryCycleTransitionPatternResponse {
+  const { pattern, persistent } = persistence;
+
+  if (!persistent) {
+    return {
+      pattern,
+      persistent,
+      response: "NONE",
+      rationale:
+        `The recovery cycle transition pattern ${pattern} has not yet established persistence, so no response is triggered.`,
+    };
+  }
+
+  if (pattern === "REPEATING") {
+    return {
+      pattern,
+      persistent,
+      response: "CONTINUE",
+      rationale:
+        `The recovery cycle transition pattern ${pattern} is persistent, so the current recovery cycle response continues without forcing reassessment.`,
+    };
+  }
+
+  if (pattern === "PERSISTENT") {
+    return {
+      pattern,
+      persistent,
+      response: "REASSESS",
+      rationale:
+        `The recovery cycle transition pattern ${pattern} is persistent, so the recovery cycle should be reassessed against the accumulated evidence.`,
+    };
+  }
+
+  return {
+    pattern,
+    persistent,
+    response: "NONE",
+    rationale:
+      `The recovery cycle transition pattern ${pattern} is persistent, but it does not require a response change.`,
   };
 }
 
@@ -6212,6 +6264,12 @@ export function calculateRecovery(
       recoveryCycleTransitionPattern.pattern,
     );
 
+
+  const recoveryCycleTransitionPatternResponse =
+    getRecoveryCycleTransitionPatternResponse(
+      recoveryCycleTransitionPatternPersistence,
+    );
+
   return {
     state,
     applicationActionEvents:
@@ -6250,6 +6308,7 @@ export function calculateRecovery(
     recoveryCycleTransitionPattern,
     recoveryCycleTransitionPatternMemory,
     recoveryCycleTransitionPatternPersistence,
+    recoveryCycleTransitionPatternResponse,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,
