@@ -1972,7 +1972,7 @@ function getActionExplanation(
   };
 }
 
-export function getRecoveryDecision(
+function getBaseRecoveryDecision(
   input: RecoveryEngineInput,
   state: RecoveryState,
   runwayMonths: number | null,
@@ -2284,6 +2284,65 @@ export function getRecoveryDecision(
     confidence: "MEDIUM",
   };
 }
+
+export function getRecoveryDecision(
+  input: RecoveryEngineInput,
+  state: RecoveryState,
+  runwayMonths: number | null,
+  recentProgression: RecentProgression | null,
+  progressionSignal: ProgressionSignal,
+  pipelineSignal: PipelineSignal,
+  pipelineComposition: PipelineComposition,
+  recoveryDirection?: RecoveryDirection,
+  recoveryDirectionPersistence?: RecoveryDirectionPersistence,
+): RecoveryDecision {
+  const decision = getBaseRecoveryDecision(
+    input,
+    state,
+    runwayMonths,
+    recentProgression,
+    progressionSignal,
+    pipelineSignal,
+    pipelineComposition,
+    recoveryDirection,
+  );
+
+  if (
+    recoveryDirection === undefined ||
+    recoveryDirectionPersistence === undefined
+  ) {
+    return decision;
+  }
+
+  if (recoveryDirectionPersistence.status === "PERSISTING") {
+    return {
+      ...decision,
+      evidence: [
+        ...decision.evidence,
+        `Recovery direction ${recoveryDirection.direction} has persisted for ${recoveryDirectionPersistence.consecutiveCycles} consecutive cycles.`,
+      ],
+    };
+  }
+
+  if (recoveryDirectionPersistence.status === "RESET") {
+    return {
+      ...decision,
+      evidence: [
+        ...decision.evidence,
+        "Recovery direction persistence was reset, so the current decision should be evaluated against the newly established path.",
+      ],
+    };
+  }
+
+  return {
+    ...decision,
+    evidence: [
+      ...decision.evidence,
+      "The current recovery direction is newly established and does not yet have persistence across cycles.",
+    ],
+  };
+}
+
 
 function getBaseRecoveryStrategy(
   decision: RecoveryDecision,
@@ -5587,6 +5646,7 @@ export function calculateRecovery(
     pipelineSignal,
     pipelineComposition,
     recoveryDirection,
+    recoveryDirectionPersistence,
   );
 
   const recoveryStrategy = getRecoveryStrategy(

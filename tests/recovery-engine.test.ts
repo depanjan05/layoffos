@@ -3224,6 +3224,105 @@ test("recovery decision builds the pipeline when downstream recovery is thin", (
   );
 });
 
+test("persistence-aware recovery decision records persistent direction evidence", () => {
+  const decision = getRecoveryDecision(
+    {} as Parameters<typeof getRecoveryDecision>[0],
+    "INTERVIEWING",
+    null,
+    null,
+    "ADVANCING",
+    "HEALTHY",
+    {} as Parameters<typeof getRecoveryDecision>[6],
+    {
+      direction: "INTENSIFY",
+      rationale: "The active opportunity is progressing.",
+      evidence: ["Interview progression is improving."],
+      source: "ADVANCEMENT",
+      confidence: "HIGH",
+    },
+    {
+      direction: "INTENSIFY",
+      consecutiveCycles: 3,
+      status: "PERSISTING",
+      rationale: "The direction has persisted.",
+      confidence: "HIGH",
+    },
+  );
+
+  assert.equal(
+    decision.evidence.some((item) =>
+      item.includes("persisted for 3 consecutive cycles"),
+    ),
+    true,
+  );
+});
+
+test("persistence-aware recovery decision records a newly established direction", () => {
+  const decision = getRecoveryDecision(
+    {} as Parameters<typeof getRecoveryDecision>[0],
+    "SEARCHING",
+    null,
+    null,
+    "NEUTRAL",
+    "WEAK",
+    {} as Parameters<typeof getRecoveryDecision>[6],
+    {
+      direction: "CONTINUE",
+      rationale: "Evidence is insufficient.",
+      evidence: [],
+      source: "INSUFFICIENT",
+      confidence: "LOW",
+    },
+    {
+      direction: "CONTINUE",
+      consecutiveCycles: 1,
+      status: "NEW",
+      rationale: "This direction is newly established.",
+      confidence: "LOW",
+    },
+  );
+
+  assert.equal(
+    decision.evidence.some((item) =>
+      item.includes("newly established"),
+    ),
+    true,
+  );
+});
+
+test("persistence-aware recovery decision records a reset direction", () => {
+  const decision = getRecoveryDecision(
+    {} as Parameters<typeof getRecoveryDecision>[0],
+    "SEARCHING",
+    null,
+    null,
+    "CLOSED",
+    "WEAK",
+    {} as Parameters<typeof getRecoveryDecision>[6],
+    {
+      direction: "REBUILD",
+      rationale: "The pipeline needs replacement capacity.",
+      evidence: ["An active opportunity closed."],
+      source: "CLOSURE",
+      confidence: "HIGH",
+    },
+    {
+      direction: "REBUILD",
+      consecutiveCycles: 1,
+      status: "RESET",
+      rationale: "The previous path was materially reset.",
+      confidence: "HIGH",
+    },
+  );
+
+  assert.equal(
+    decision.evidence.some((item) =>
+      item.includes("persistence was reset"),
+    ),
+    true,
+  );
+});
+
 test("recovery engine exposes the strategic recovery decision", () => {
   const input = actionInput({
     applications: [
