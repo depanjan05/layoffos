@@ -12,6 +12,7 @@ import {
   getRecoveryRecalibration,
   getRecoveryCycleState,
   getRecoveryCycleMemory,
+  getRecoveryCycleTransition,
   getRecoveryDirection,
   getRecoveryDirectionMemory,
   getRecoveryDirectionStability,
@@ -5973,4 +5974,138 @@ test("recovery cycle memory identifies a reset transition", () => {
   assert.equal(memory.previousStatus, "REASSESS");
   assert.equal(memory.currentStatus, "RESET");
   assert.equal(memory.carriedForward, false);
+});
+
+test("recovery cycle transition identifies an initial cycle", () => {
+  const current = {
+    status: "CONTINUE",
+    reason: "The current recovery path remains supported.",
+    source: "HOLD",
+  } as const;
+
+  const transition = getRecoveryCycleTransition(null, current);
+
+  assert.equal(transition.from, null);
+  assert.equal(transition.to, "CONTINUE");
+  assert.equal(transition.transition, "INITIAL");
+  assert.equal(transition.changed, true);
+  assert.match(transition.rationale, /first available recovery cycle/i);
+});
+
+test("recovery cycle transition identifies an unchanged cycle", () => {
+  const previous = {
+    status: "CONTINUE",
+    reason: "Previous cycle continued.",
+    source: "HOLD",
+  } as const;
+
+  const current = {
+    status: "CONTINUE",
+    reason: "Current cycle continues.",
+    source: "HOLD",
+  } as const;
+
+  const transition = getRecoveryCycleTransition(previous, current);
+
+  assert.equal(transition.from, "CONTINUE");
+  assert.equal(transition.to, "CONTINUE");
+  assert.equal(transition.transition, "UNCHANGED");
+  assert.equal(transition.changed, false);
+});
+
+test("recovery cycle transition identifies reassessment as regression", () => {
+  const previous = {
+    status: "CONTINUE",
+    reason: "Previous cycle continued.",
+    source: "HOLD",
+  } as const;
+
+  const current = {
+    status: "REASSESS",
+    reason: "Current evidence requires reassessment.",
+    source: "REASSESS",
+  } as const;
+
+  const transition = getRecoveryCycleTransition(previous, current);
+
+  assert.equal(transition.transition, "REGRESSED");
+  assert.equal(transition.changed, true);
+  assert.match(transition.rationale, /requires more caution/i);
+});
+
+test("recovery cycle transition identifies reassessment to continuation as progress", () => {
+  const previous = {
+    status: "REASSESS",
+    reason: "Previous cycle required reassessment.",
+    source: "REASSESS",
+  } as const;
+
+  const current = {
+    status: "CONTINUE",
+    reason: "Current evidence supports continuation.",
+    source: "HOLD",
+  } as const;
+
+  const transition = getRecoveryCycleTransition(previous, current);
+
+  assert.equal(transition.transition, "PROGRESSED");
+  assert.equal(transition.changed, true);
+});
+
+test("recovery cycle transition identifies reset explicitly", () => {
+  const previous = {
+    status: "REASSESS",
+    reason: "Previous cycle required reassessment.",
+    source: "REASSESS",
+  } as const;
+
+  const current = {
+    status: "RESET",
+    reason: "Previous directional assumptions must be discarded.",
+    source: "PERSISTENCE_RESET",
+  } as const;
+
+  const transition = getRecoveryCycleTransition(previous, current);
+
+  assert.equal(transition.transition, "RESET");
+  assert.equal(transition.changed, true);
+  assert.match(transition.rationale, /discarded/i);
+});
+
+test("recovery cycle transition identifies reset to continuation as progress", () => {
+  const previous = {
+    status: "RESET",
+    reason: "Previous assumptions were discarded.",
+    source: "PERSISTENCE_RESET",
+  } as const;
+
+  const current = {
+    status: "CONTINUE",
+    reason: "The current recovery path is supported.",
+    source: "HOLD",
+  } as const;
+
+  const transition = getRecoveryCycleTransition(previous, current);
+
+  assert.equal(transition.transition, "PROGRESSED");
+  assert.equal(transition.changed, true);
+});
+
+test("recovery cycle transition identifies reassessment to reset explicitly", () => {
+  const previous = {
+    status: "REASSESS",
+    reason: "Previous cycle required reassessment.",
+    source: "REASSESS",
+  } as const;
+
+  const current = {
+    status: "RESET",
+    reason: "Previous assumptions must be discarded.",
+    source: "PERSISTENCE_RESET",
+  } as const;
+
+  const transition = getRecoveryCycleTransition(previous, current);
+
+  assert.equal(transition.transition, "RESET");
+  assert.equal(transition.changed, true);
 });

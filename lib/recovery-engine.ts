@@ -191,6 +191,19 @@ export type RecoveryCycleMemory = {
   rationale: string;
 };
 
+export type RecoveryCycleTransition = {
+  from: RecoveryCycleState["status"] | null;
+  to: RecoveryCycleState["status"];
+  transition:
+    | "INITIAL"
+    | "UNCHANGED"
+    | "PROGRESSED"
+    | "REGRESSED"
+    | "RESET";
+  changed: boolean;
+  rationale: string;
+};
+
 export type RecoveryDirection = {
   direction:
     | "CONTINUE"
@@ -1016,6 +1029,7 @@ export type RecoveryEngineResult = {
   recoveryRecalibration: RecoveryRecalibration;
   recoveryCycleState: RecoveryCycleState;
   recoveryCycleMemory: RecoveryCycleMemory;
+  recoveryCycleTransition: RecoveryCycleTransition;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3247,6 +3261,70 @@ export function getRecoveryCycleMemory(
     carriedForward: false,
     rationale:
       `The previous recovery cycle was ${previousStatus}, but the current cycle is ${currentCycleState.status}, so the current evidence takes precedence and the cycle context changes.`,
+  };
+}
+
+export function getRecoveryCycleTransition(
+  previousCycleState: RecoveryCycleState | null | undefined,
+  currentCycleState: RecoveryCycleState,
+): RecoveryCycleTransition {
+  const from = previousCycleState?.status ?? null;
+  const to = currentCycleState.status;
+
+  if (from === null) {
+    return {
+      from: null,
+      to,
+      transition: "INITIAL",
+      changed: true,
+      rationale:
+        "This is the first available recovery cycle, so the current cycle establishes the initial recovery context.",
+    };
+  }
+
+  if (from === to) {
+    return {
+      from,
+      to,
+      transition: "UNCHANGED",
+      changed: false,
+      rationale:
+        `The previous recovery cycle was ${from}, and the current cycle remains ${to}, so the recovery cycle context is unchanged.`,
+    };
+  }
+
+  if (to === "RESET") {
+    return {
+      from,
+      to,
+      transition: "RESET",
+      changed: true,
+      rationale:
+        `The previous recovery cycle was ${from}, but the current cycle is RESET, so assumptions carried forward from the previous cycle must be discarded.`,
+    };
+  }
+
+  if (
+    (from === "REASSESS" && to === "CONTINUE") ||
+    (from === "RESET" && to === "CONTINUE")
+  ) {
+    return {
+      from,
+      to,
+      transition: "PROGRESSED",
+      changed: true,
+      rationale:
+        `The recovery cycle moved from ${from} to ${to}, indicating that the current evidence supports continuing the recovery path after the previous cycle state.`,
+    };
+  }
+
+  return {
+    from,
+    to,
+    transition: "REGRESSED",
+    changed: true,
+    rationale:
+      `The recovery cycle moved from ${from} to ${to}, indicating that the current evidence requires more caution than the previous cycle state.`,
   };
 }
 
@@ -5908,6 +5986,11 @@ export function calculateRecovery(
     recoveryCycleState,
   );
 
+  const recoveryCycleTransition = getRecoveryCycleTransition(
+    input.previousRecoveryCycleState,
+    recoveryCycleState,
+  );
+
   return {
     state,
     applicationActionEvents:
@@ -5941,6 +6024,7 @@ export function calculateRecovery(
     recoveryRecalibration,
     recoveryCycleState,
     recoveryCycleMemory,
+    recoveryCycleTransition,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,
