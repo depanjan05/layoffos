@@ -5667,3 +5667,128 @@ test("action-aware recovery direction preserves direction with insufficient acti
   assert.equal(direction.source, "INSUFFICIENT");
   assert.equal(direction.confidence, "LOW");
 });
+
+
+
+  const baseDecision = {
+    decision: "Continue recovery",
+    objective: "Maintain recovery momentum.",
+    evidence: [],
+    constraints: [],
+    confidence: "HIGH" as const,
+  };
+
+  const baseStrategy = {
+    strategy: "Continue the current recovery approach",
+    objective: "Maintain recovery momentum.",
+    approach: [],
+    guardrails: [],
+    successSignals: [],
+    confidence: "HIGH" as const,
+  };
+
+  const basePlan = {
+    objective: "Maintain recovery momentum.",
+    sequence: ["Prioritize progression"],
+    immediateAction: "Prioritize progression",
+    supportingActions: [],
+    avoidActions: [],
+    confidence: "HIGH" as const,
+  };
+
+  test("persistence-aware recalibration holds an established direction", () => {
+    const result = getRecoveryRecalibration(
+      "ADVANCING",
+      "Recovery is progressing.",
+      baseDecision,
+      baseStrategy,
+      basePlan,
+      [],
+      undefined,
+      undefined,
+      {
+        direction: "CONTINUE",
+        consecutiveCycles: 3,
+        status: "PERSISTING",
+        rationale: "The recovery direction is unchanged.",
+        confidence: "HIGH",
+      },
+    );
+
+    assert.equal(result.decisionStatus, "HOLD");
+    assert.equal(result.strategyStatus, "HOLD");
+    assert.ok(
+      result.rationale.includes(
+        "Persistence-aware recalibration: hold the current recovery direction because it remains supported across 3 consecutive cycles.",
+      ),
+    );
+  });
+
+  test("persistence-aware recalibration avoids premature reassessment for a new direction", () => {
+    const result = getRecoveryRecalibration(
+      "ADVANCING",
+      "Recovery is progressing.",
+      baseDecision,
+      baseStrategy,
+      basePlan,
+      [],
+      undefined,
+      undefined,
+      {
+        direction: "CONTINUE",
+        consecutiveCycles: 1,
+        status: "NEW",
+        rationale: "This is a newly established direction.",
+        confidence: "HIGH",
+      },
+    );
+
+    assert.equal(result.decisionStatus, "HOLD");
+    assert.equal(result.strategyStatus, "HOLD");
+    assert.ok(
+      result.rationale.includes(
+        "Persistence-aware recalibration: avoid premature reassessment because the current recovery direction has only been established for one cycle.",
+      ),
+    );
+  });
+
+  test("persistence-aware recalibration resets assumptions after directional reset", () => {
+    const result = getRecoveryRecalibration(
+      "SETBACK",
+      "SETBACK",
+      {
+        ...baseDecision,
+        decision: "Reassess recovery",
+        objective: "Restore recovery progression.",
+      },
+      {
+        ...baseStrategy,
+        strategy: "Reassess the recovery approach",
+        objective: "Restore recovery progression.",
+      },
+      {
+        ...basePlan,
+        objective: "Restore recovery progression.",
+        sequence: ["Rebuild qualified applications/conversations"],
+        immediateAction: "Rebuild qualified applications/conversations",
+      },
+      [],
+      undefined,
+      undefined,
+      {
+        direction: "SHIFT",
+        consecutiveCycles: 1,
+        status: "RESET",
+        rationale: "The recovery direction was reset.",
+        confidence: "HIGH",
+      },
+    );
+
+    assert.equal(result.decisionStatus, "REASSESS");
+    assert.equal(result.strategyStatus, "REASSESS");
+    assert.ok(
+      result.rationale.includes(
+        "Persistence-aware recalibration: reassess the current recovery direction and discard assumptions carried forward from the previous direction.",
+      ),
+    );
+  });

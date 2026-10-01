@@ -3185,6 +3185,7 @@ export function getRecoveryRecalibration(
     evidence: [],
     recommendation: "",
   },
+  recoveryDirectionPersistence?: RecoveryDirectionPersistence,
 ): RecoveryRecalibration {
   const nextAction =
     plan.sequence
@@ -3206,6 +3207,15 @@ export function getRecoveryRecalibration(
         ? "CHALLENGES"
         : "SUPPORTS";
 
+  const persistenceRationale =
+    recoveryDirectionPersistence === undefined
+      ? null
+      : recoveryDirectionPersistence.status === "PERSISTING"
+        ? `Persistence-aware recalibration: hold the current recovery direction because it remains supported across ${recoveryDirectionPersistence.consecutiveCycles} consecutive cycles.`
+        : recoveryDirectionPersistence.status === "RESET"
+          ? "Persistence-aware recalibration: reassess the current recovery direction and discard assumptions carried forward from the previous direction."
+          : "Persistence-aware recalibration: avoid premature reassessment because the current recovery direction has only been established for one cycle.";
+
   if (state === "RECOVERED") {
     return {
       trigger: "Recovery state changed to recovered",
@@ -3218,6 +3228,7 @@ export function getRecoveryRecalibration(
       rationale: [
         "The recovery decision remains aligned with the current recovered state.",
         "Execution should focus on completing the transition and protecting the gains created by recovery.",
+        ...(persistenceRationale ? [persistenceRationale] : []),
       ],
       confidence: decision.confidence,
     };
@@ -3241,6 +3252,7 @@ export function getRecoveryRecalibration(
       rationale: [
         "The latest pipeline signal changes the evidence supporting the current recovery direction.",
         "The recovery decision and strategy should be reassessed before expanding activity.",
+        ...(persistenceRationale ? [persistenceRationale] : []),
       ],
       confidence: "HIGH",
     };
@@ -3258,6 +3270,7 @@ export function getRecoveryRecalibration(
       rationale: [
         "The latest progression signal supports the current recovery direction.",
         "Continue executing the current strategy while protecting the active opportunity.",
+        ...(persistenceRationale ? [persistenceRationale] : []),
       ],
       confidence: decision.confidence,
     };
@@ -3274,6 +3287,7 @@ export function getRecoveryRecalibration(
     rationale: [
       "The current recovery decision remains supported by available evidence.",
       "Continue the existing execution plan until a meaningful signal changes.",
+      ...(persistenceRationale ? [persistenceRationale] : []),
     ],
     confidence:
       decision.confidence === "LOW"
@@ -5794,6 +5808,7 @@ export function calculateRecovery(
     actions,
     recoveryLearning,
     actionEffect,
+    recoveryDirectionPersistence,
   );
 
 
