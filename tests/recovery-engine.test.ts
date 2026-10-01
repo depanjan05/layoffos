@@ -45,6 +45,7 @@ import {
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponse,
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponseMemory,
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistence,
+  getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequenceMemory,
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence,
 } from "../lib/recovery-engine.ts";
 
@@ -7859,4 +7860,85 @@ test("V1.85 persistent RESET consequence rationale explains persistence", () => 
 
   assert.match(result.rationale, /persistent/i);
   assert.match(result.rationale, /RESET/i);
+});
+
+test("V1.86 initial consequence context is not repeated", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequenceMemory(
+      null,
+      "MAINTAIN",
+    );
+
+  assert.equal(result.previousConsequence, null);
+  assert.equal(result.currentConsequence, "MAINTAIN");
+  assert.equal(result.repeated, false);
+});
+
+test("V1.86 repeated NONE consequence is remembered", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequenceMemory(
+      "NONE",
+      "NONE",
+    );
+
+  assert.equal(result.previousConsequence, "NONE");
+  assert.equal(result.currentConsequence, "NONE");
+  assert.equal(result.repeated, true);
+});
+
+test("V1.86 repeated MAINTAIN consequence is remembered", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequenceMemory(
+      "MAINTAIN",
+      "MAINTAIN",
+    );
+
+  assert.equal(result.repeated, true);
+  assert.equal(result.currentConsequence, "MAINTAIN");
+});
+
+test("V1.86 repeated REASSESS consequence is remembered", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequenceMemory(
+      "REASSESS",
+      "REASSESS",
+    );
+
+  assert.equal(result.repeated, true);
+  assert.equal(result.currentConsequence, "REASSESS");
+});
+
+test("V1.86 repeated RESET consequence is remembered", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequenceMemory(
+      "RESET",
+      "RESET",
+    );
+
+  assert.equal(result.repeated, true);
+  assert.equal(result.currentConsequence, "RESET");
+});
+
+test("V1.86 changed consequence is not repeated", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequenceMemory(
+      "MAINTAIN",
+      "RESET",
+    );
+
+  assert.equal(result.previousConsequence, "MAINTAIN");
+  assert.equal(result.currentConsequence, "RESET");
+  assert.equal(result.repeated, false);
+});
+
+test("V1.86 changed consequence rationale explains the transition", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequenceMemory(
+      "REASSESS",
+      "RESET",
+    );
+
+  assert.match(result.rationale, /REASSESS/i);
+  assert.match(result.rationale, /RESET/i);
+  assert.match(result.rationale, /changed/i);
 });
