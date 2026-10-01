@@ -45,6 +45,7 @@ import {
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponse,
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponseMemory,
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistence,
+  getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence,
 } from "../lib/recovery-engine.ts";
 
 function progression(
@@ -7754,4 +7755,108 @@ test("V1.84 consequence response consequence response persistence explains chang
   assert.match(result.rationale, /MAINTAIN/i);
   assert.match(result.rationale, /RESET/i);
   assert.match(result.rationale, /starts again/i);
+});
+
+test("V1.85 persistent MAINTAIN response produces MAINTAIN consequence", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence(
+      {
+        response: "MAINTAIN",
+        occurrences: 3,
+        persistent: true,
+        rationale: "previous",
+      },
+    );
+
+  assert.equal(result.response, "MAINTAIN");
+  assert.equal(result.persistent, true);
+  assert.equal(result.consequence, "MAINTAIN");
+});
+
+test("V1.85 nonpersistent MAINTAIN response produces NONE consequence", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence(
+      {
+        response: "MAINTAIN",
+        occurrences: 2,
+        persistent: false,
+        rationale: "previous",
+      },
+    );
+
+  assert.equal(result.consequence, "NONE");
+});
+
+test("V1.85 persistent REASSESS response produces REASSESS consequence", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence(
+      {
+        response: "REASSESS",
+        occurrences: 3,
+        persistent: true,
+        rationale: "previous",
+      },
+    );
+
+  assert.equal(result.response, "REASSESS");
+  assert.equal(result.consequence, "REASSESS");
+});
+
+test("V1.85 persistent RESET response produces RESET consequence", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence(
+      {
+        response: "RESET",
+        occurrences: 3,
+        persistent: true,
+        rationale: "previous",
+      },
+    );
+
+  assert.equal(result.response, "RESET");
+  assert.equal(result.consequence, "RESET");
+});
+
+test("V1.85 persistent NONE response produces NONE consequence", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence(
+      {
+        response: "NONE",
+        occurrences: 3,
+        persistent: true,
+        rationale: "previous",
+      },
+    );
+
+  assert.equal(result.response, "NONE");
+  assert.equal(result.consequence, "NONE");
+});
+
+test("V1.85 nonpersistent RESET response produces NONE consequence", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence(
+      {
+        response: "RESET",
+        occurrences: 1,
+        persistent: false,
+        rationale: "previous",
+      },
+    );
+
+  assert.equal(result.consequence, "NONE");
+});
+
+test("V1.85 persistent RESET consequence rationale explains persistence", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence(
+      {
+        response: "RESET",
+        occurrences: 4,
+        persistent: true,
+        rationale: "previous",
+      },
+    );
+
+  assert.match(result.rationale, /persistent/i);
+  assert.match(result.rationale, /RESET/i);
 });
