@@ -204,6 +204,13 @@ export type RecoveryCycleTransition = {
   rationale: string;
 };
 
+export type RecoveryCycleTransitionMemory = {
+  previousTransition: RecoveryCycleTransition["transition"] | null;
+  currentTransition: RecoveryCycleTransition["transition"];
+  repeated: boolean;
+  rationale: string;
+};
+
 export type RecoveryDirection = {
   direction:
     | "CONTINUE"
@@ -362,6 +369,9 @@ export type RecoveryEngineInput = {
   previousRecoveryDirection?: RecoveryDirection["direction"] | null;
   previousRecoveryDirectionCycles?: number;
   previousRecoveryCycleState?: RecoveryCycleState | null;
+  previousRecoveryCycleTransition?:
+    | RecoveryCycleTransition["transition"]
+    | null;
 };
 
 export type RecentProgression = {
@@ -1030,6 +1040,7 @@ export type RecoveryEngineResult = {
   recoveryCycleState: RecoveryCycleState;
   recoveryCycleMemory: RecoveryCycleMemory;
   recoveryCycleTransition: RecoveryCycleTransition;
+  recoveryCycleTransitionMemory: RecoveryCycleTransitionMemory;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3325,6 +3336,41 @@ export function getRecoveryCycleTransition(
     changed: true,
     rationale:
       `The recovery cycle moved from ${from} to ${to}, indicating that the current evidence requires more caution than the previous cycle state.`,
+  };
+}
+
+export function getRecoveryCycleTransitionMemory(
+  previousTransition: RecoveryCycleTransition["transition"] | null | undefined,
+  currentTransition: RecoveryCycleTransition["transition"],
+): RecoveryCycleTransitionMemory {
+  const previous = previousTransition ?? null;
+
+  if (previous === null) {
+    return {
+      previousTransition: null,
+      currentTransition,
+      repeated: false,
+      rationale:
+        "No previous recovery cycle transition is available, so the current transition establishes the initial transition context.",
+    };
+  }
+
+  if (previous === currentTransition) {
+    return {
+      previousTransition: previous,
+      currentTransition,
+      repeated: true,
+      rationale:
+        `The previous recovery cycle transition was ${previous}, and the current transition is also ${currentTransition}, so the transition pattern is repeated.`,
+    };
+  }
+
+  return {
+    previousTransition: previous,
+    currentTransition,
+    repeated: false,
+    rationale:
+      `The previous recovery cycle transition was ${previous}, but the current transition is ${currentTransition}, so the transition pattern has changed.`,
   };
 }
 
@@ -5991,6 +6037,12 @@ export function calculateRecovery(
     recoveryCycleState,
   );
 
+  const recoveryCycleTransitionMemory =
+    getRecoveryCycleTransitionMemory(
+      input.previousRecoveryCycleTransition,
+      recoveryCycleTransition.transition,
+    );
+
   return {
     state,
     applicationActionEvents:
@@ -6025,6 +6077,7 @@ export function calculateRecovery(
     recoveryCycleState,
     recoveryCycleMemory,
     recoveryCycleTransition,
+    recoveryCycleTransitionMemory,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,

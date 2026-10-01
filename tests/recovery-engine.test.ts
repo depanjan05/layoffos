@@ -13,6 +13,7 @@ import {
   getRecoveryCycleState,
   getRecoveryCycleMemory,
   getRecoveryCycleTransition,
+  getRecoveryCycleTransitionMemory,
   getRecoveryDirection,
   getRecoveryDirectionMemory,
   getRecoveryDirectionStability,
@@ -6108,4 +6109,91 @@ test("recovery cycle transition identifies reassessment to reset explicitly", ()
 
   assert.equal(transition.transition, "RESET");
   assert.equal(transition.changed, true);
+});
+
+test("recovery cycle transition memory establishes initial context", () => {
+  const memory = getRecoveryCycleTransitionMemory(
+    null,
+    "INITIAL",
+  );
+
+  assert.equal(memory.previousTransition, null);
+  assert.equal(memory.currentTransition, "INITIAL");
+  assert.equal(memory.repeated, false);
+  assert.match(
+    memory.rationale,
+    /initial transition context/i,
+  );
+});
+
+test("recovery cycle transition memory identifies a repeated unchanged transition", () => {
+  const memory = getRecoveryCycleTransitionMemory(
+    "UNCHANGED",
+    "UNCHANGED",
+  );
+
+  assert.equal(memory.previousTransition, "UNCHANGED");
+  assert.equal(memory.currentTransition, "UNCHANGED");
+  assert.equal(memory.repeated, true);
+  assert.match(memory.rationale, /transition pattern is repeated/i);
+});
+
+test("recovery cycle transition memory identifies a repeated regression", () => {
+  const memory = getRecoveryCycleTransitionMemory(
+    "REGRESSED",
+    "REGRESSED",
+  );
+
+  assert.equal(memory.previousTransition, "REGRESSED");
+  assert.equal(memory.currentTransition, "REGRESSED");
+  assert.equal(memory.repeated, true);
+});
+
+test("recovery cycle transition memory identifies a repeated progression", () => {
+  const memory = getRecoveryCycleTransitionMemory(
+    "PROGRESSED",
+    "PROGRESSED",
+  );
+
+  assert.equal(memory.previousTransition, "PROGRESSED");
+  assert.equal(memory.currentTransition, "PROGRESSED");
+  assert.equal(memory.repeated, true);
+});
+
+test("recovery cycle transition memory identifies a repeated reset", () => {
+  const memory = getRecoveryCycleTransitionMemory(
+    "RESET",
+    "RESET",
+  );
+
+  assert.equal(memory.previousTransition, "RESET");
+  assert.equal(memory.currentTransition, "RESET");
+  assert.equal(memory.repeated, true);
+});
+
+test("recovery cycle transition memory identifies a changed transition", () => {
+  const memory = getRecoveryCycleTransitionMemory(
+    "REGRESSED",
+    "PROGRESSED",
+  );
+
+  assert.equal(memory.previousTransition, "REGRESSED");
+  assert.equal(memory.currentTransition, "PROGRESSED");
+  assert.equal(memory.repeated, false);
+  assert.match(memory.rationale, /transition pattern has changed/i);
+});
+
+test("recovery cycle transition memory distinguishes initial from repeated context", () => {
+  const initial = getRecoveryCycleTransitionMemory(
+    null,
+    "PROGRESSED",
+  );
+
+  const repeated = getRecoveryCycleTransitionMemory(
+    "PROGRESSED",
+    "PROGRESSED",
+  );
+
+  assert.equal(initial.repeated, false);
+  assert.equal(repeated.repeated, true);
 });
