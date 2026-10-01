@@ -10,6 +10,7 @@ import {
   getRecoveryStrategy,
   getRecoveryExecutionPlan,
   getRecoveryRecalibration,
+  getRecoveryCycleState,
   getRecoveryDirection,
   getRecoveryDirectionMemory,
   getRecoveryDirectionStability,
@@ -5696,7 +5697,111 @@ test("action-aware recovery direction preserves direction with insufficient acti
     confidence: "HIGH" as const,
   };
 
-  test("persistence-aware recalibration holds an established direction", () => {
+  test("recovery cycle continues after persistent recalibration", () => {
+  const recalibration = getRecoveryRecalibration(
+    "SEARCHING",
+    "ADVANCING",
+    {
+      status: "CONTINUE",
+      reason: "Continue",
+      constraint: null,
+      confidence: "HIGH",
+      evidence: [],
+    },
+    {
+      strategy: "Continue",
+      rationale: [],
+      sequence: [],
+      immediateAction: "Continue",
+      confidence: "HIGH",
+    },
+    {
+      sequence: [],
+      immediateAction: "Continue",
+      supportingActions: [],
+      avoidActions: [],
+      confidence: "HIGH",
+    },
+    [],
+    {
+      pattern: "Positive",
+      learning: "Positive",
+      evidence: ["Positive"],
+      confidence: "HIGH",
+    },
+    {
+      status: "POSITIVE",
+      headline: "Positive",
+      summary: "Positive",
+      evidence: ["Positive"],
+      recommendation: "Continue",
+    },
+    {
+      status: "PERSISTING",
+      consecutiveCycles: 3,
+      reason: "Direction persists",
+      confidence: "HIGH",
+    },
+  );
+
+  const result = getRecoveryCycleState(recalibration, {
+    status: "PERSISTING",
+    consecutiveCycles: 3,
+    reason: "Direction persists",
+    confidence: "HIGH",
+  });
+
+  assert.equal(result.status, "CONTINUE");
+  assert.equal(result.source, "HOLD");
+  assert.match(result.reason, /3 consecutive cycles/i);
+});
+
+test("recovery cycle reassesses after recalibration", () => {
+  const recalibration = {
+    trigger: "Pipeline signal changed materially",
+    signal: "An active recovery opportunity moved backward.",
+    decisionStatus: "REASSESS" as const,
+    strategyStatus: "REASSESS" as const,
+    learningEffect: "CHALLENGES" as const,
+    executionEffect: "CHALLENGES" as const,
+    nextStep: "Reassess",
+    rationale: ["The latest pipeline signal changes the evidence."],
+    confidence: "HIGH" as const,
+  };
+
+  const result = getRecoveryCycleState(recalibration);
+
+  assert.equal(result.status, "REASSESS");
+  assert.equal(result.source, "REASSESS");
+  assert.match(result.reason, /reassess/i);
+});
+
+test("recovery cycle resets after directional persistence reset", () => {
+  const recalibration = {
+    trigger: "Pipeline signal changed materially",
+    signal: "An active recovery opportunity moved backward.",
+    decisionStatus: "REASSESS" as const,
+    strategyStatus: "REASSESS" as const,
+    learningEffect: "CHALLENGES" as const,
+    executionEffect: "CHALLENGES" as const,
+    nextStep: "Reassess",
+    rationale: ["The latest pipeline signal changes the evidence."],
+    confidence: "HIGH" as const,
+  };
+
+  const result = getRecoveryCycleState(recalibration, {
+    status: "RESET",
+    consecutiveCycles: 1,
+    reason: "Direction reset",
+    confidence: "HIGH",
+  });
+
+  assert.equal(result.status, "RESET");
+  assert.equal(result.source, "PERSISTENCE_RESET");
+  assert.match(result.reason, /discard assumptions/i);
+});
+
+test("persistence-aware recalibration holds an established direction", () => {
     const result = getRecoveryRecalibration(
       "ADVANCING",
       "Recovery is progressing.",

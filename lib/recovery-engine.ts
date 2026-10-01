@@ -178,6 +178,12 @@ export type RecoveryRecalibration = {
   confidence: "HIGH" | "MEDIUM" | "LOW";
 };
 
+export type RecoveryCycleState = {
+  status: "CONTINUE" | "REASSESS" | "RESET";
+  reason: string;
+  source: RecoveryRecalibration["decisionStatus"] | "PERSISTENCE_RESET";
+};
+
 export type RecoveryDirection = {
   direction:
     | "CONTINUE"
@@ -1000,6 +1006,7 @@ export type RecoveryEngineResult = {
   recoveryExecutionPlan: RecoveryExecutionPlan;
   executionActions: RecoveryExecutionAction[];
   recoveryRecalibration: RecoveryRecalibration;
+  recoveryCycleState: RecoveryCycleState;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3162,6 +3169,41 @@ function getRecoveryExecutionEffect(
   }
 
   return "INSUFFICIENT";
+}
+
+export function getRecoveryCycleState(
+  recalibration: RecoveryRecalibration,
+  recoveryDirectionPersistence?: RecoveryDirectionPersistence,
+): RecoveryCycleState {
+  if (recoveryDirectionPersistence?.status === "RESET") {
+    return {
+      status: "RESET",
+      reason:
+        "The recovery direction was reset, so the next recovery cycle must discard assumptions carried forward from the previous direction.",
+      source: "PERSISTENCE_RESET",
+    };
+  }
+
+  if (
+    recalibration.decisionStatus === "REASSESS" ||
+    recalibration.strategyStatus === "REASSESS"
+  ) {
+    return {
+      status: "REASSESS",
+      reason:
+        "The latest recovery evidence requires the next cycle to reassess the current decision and strategy.",
+      source: "REASSESS",
+    };
+  }
+
+  return {
+    status: "CONTINUE",
+    reason:
+      recoveryDirectionPersistence?.status === "PERSISTING"
+        ? `The current recovery direction remains supported across ${recoveryDirectionPersistence.consecutiveCycles} consecutive cycles, so the next cycle should continue the established path.`
+        : "The current recovery decision and strategy remain supported, so the next cycle should continue the established path.",
+    source: "HOLD",
+  };
 }
 
 export function getRecoveryRecalibration(
@@ -5812,6 +5854,11 @@ export function calculateRecovery(
   );
 
 
+  const recoveryCycleState = getRecoveryCycleState(
+    recoveryRecalibration,
+    recoveryDirectionPersistence,
+  );
+
   return {
     state,
     applicationActionEvents:
@@ -5843,6 +5890,7 @@ export function calculateRecovery(
     recoveryExecutionPlan,
     executionActions,
     recoveryRecalibration,
+    recoveryCycleState,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,
