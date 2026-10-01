@@ -211,6 +211,13 @@ export type RecoveryCycleTransitionMemory = {
   rationale: string;
 };
 
+export type RecoveryCycleTransitionPatternPersistence = {
+  pattern: RecoveryCycleTransitionPattern["pattern"];
+  occurrences: number;
+  persistent: boolean;
+  rationale: string;
+};
+
 export type RecoveryCycleTransitionPatternMemory = {
   previousPattern: RecoveryCycleTransitionPattern["pattern"] | null;
   currentPattern: RecoveryCycleTransitionPattern["pattern"];
@@ -1059,6 +1066,7 @@ export type RecoveryEngineResult = {
   recoveryCycleTransitionMemory: RecoveryCycleTransitionMemory;
   recoveryCycleTransitionPattern: RecoveryCycleTransitionPattern;
   recoveryCycleTransitionPatternMemory: RecoveryCycleTransitionPatternMemory;
+  recoveryCycleTransitionPatternPersistence: RecoveryCycleTransitionPatternPersistence;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3468,6 +3476,41 @@ export function getRecoveryCycleTransitionPatternMemory(
       `The previous recovery cycle transition pattern was ${previous}, but the current pattern is ${currentPattern}, so the pattern has changed.`,
   };
 }
+
+export function getRecoveryCycleTransitionPatternPersistence(
+  previousPersistence:
+    | RecoveryCycleTransitionPatternPersistence
+    | null
+    | undefined,
+  currentPattern: RecoveryCycleTransitionPattern["pattern"],
+): RecoveryCycleTransitionPatternPersistence {
+  const previous = previousPersistence ?? null;
+
+  if (previous === null || previous.pattern !== currentPattern) {
+    return {
+      pattern: currentPattern,
+      occurrences: 1,
+      persistent: false,
+      rationale:
+        previous === null
+          ? "No previous recovery cycle transition pattern persistence is available, so the current pattern establishes the initial persistence context."
+          : `The previous recovery cycle transition pattern was ${previous.pattern}, but the current pattern is ${currentPattern}, so persistence resets for the new pattern.`,
+    };
+  }
+
+  const occurrences = previous.occurrences + 1;
+  const persistent = occurrences >= 3;
+
+  return {
+    pattern: currentPattern,
+    occurrences,
+    persistent,
+    rationale: persistent
+      ? `The recovery cycle transition pattern ${currentPattern} has persisted for ${occurrences} consecutive evaluations, so the pattern is persistent.`
+      : `The recovery cycle transition pattern ${currentPattern} has now been observed for ${occurrences} consecutive evaluations, but persistence has not yet been established.`,
+  };
+}
+
 
 
 export function getRecoveryRecalibration(
@@ -6151,6 +6194,24 @@ export function calculateRecovery(
       recoveryCycleTransitionPattern.pattern,
     );
 
+  const previousPatternPersistence =
+    input.previousRecoveryCycleTransitionPattern
+      ? {
+          pattern: input.previousRecoveryCycleTransitionPattern.pattern,
+          occurrences: input.previousRecoveryCycleTransitionPattern.occurrences,
+          persistent:
+            input.previousRecoveryCycleTransitionPattern.occurrences >= 3,
+          rationale:
+            input.previousRecoveryCycleTransitionPattern.rationale,
+        }
+      : null;
+
+  const recoveryCycleTransitionPatternPersistence =
+    getRecoveryCycleTransitionPatternPersistence(
+      previousPatternPersistence,
+      recoveryCycleTransitionPattern.pattern,
+    );
+
   return {
     state,
     applicationActionEvents:
@@ -6188,6 +6249,7 @@ export function calculateRecovery(
     recoveryCycleTransitionMemory,
     recoveryCycleTransitionPattern,
     recoveryCycleTransitionPatternMemory,
+    recoveryCycleTransitionPatternPersistence,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,
