@@ -240,6 +240,14 @@ export type RecoveryCycleTransitionPatternConsequenceMemory = {
   rationale: string;
 };
 
+export type RecoveryCycleTransitionPatternConsequencePersistence = {
+  consequence:
+    RecoveryCycleTransitionPatternConsequence["consequence"];
+  occurrences: number;
+  persistent: boolean;
+  rationale: string;
+};
+
 
 export type RecoveryCycleTransitionPatternMemory = {
   previousPattern: RecoveryCycleTransitionPattern["pattern"] | null;
@@ -420,6 +428,9 @@ export type RecoveryEngineInput = {
   previousRecoveryCycleTransitionPattern?: RecoveryCycleTransitionPattern | null;
   previousRecoveryCycleTransitionPatternConsequence?:
     | RecoveryCycleTransitionPatternConsequence["consequence"]
+    | null;
+  previousRecoveryCycleTransitionPatternConsequencePersistence?:
+    | RecoveryCycleTransitionPatternConsequencePersistence
     | null;
 };
 
@@ -1097,6 +1108,8 @@ export type RecoveryEngineResult = {
   recoveryCycleTransitionPatternConsequence: RecoveryCycleTransitionPatternConsequence;
   recoveryCycleTransitionPatternConsequenceMemory:
     RecoveryCycleTransitionPatternConsequenceMemory;
+  recoveryCycleTransitionPatternConsequencePersistence:
+    RecoveryCycleTransitionPatternConsequencePersistence;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3582,6 +3595,42 @@ export function getRecoveryCycleTransitionPatternConsequenceMemory(
     repeated: false,
     rationale:
       `The previous recovery cycle transition pattern consequence was ${previous}, but the current consequence is ${currentConsequence}, so the consequence has changed.`,
+  };
+}
+
+
+export function getRecoveryCycleTransitionPatternConsequencePersistence(
+  previousPersistence:
+    | RecoveryCycleTransitionPatternConsequencePersistence
+    | null
+    | undefined,
+  currentConsequence:
+    RecoveryCycleTransitionPatternConsequence["consequence"],
+): RecoveryCycleTransitionPatternConsequencePersistence {
+  const previous = previousPersistence ?? null;
+
+  if (previous === null || previous.consequence !== currentConsequence) {
+    return {
+      consequence: currentConsequence,
+      occurrences: 1,
+      persistent: false,
+      rationale:
+        previous === null
+          ? "No previous recovery cycle transition pattern consequence persistence is available, so the current consequence establishes the initial persistence context."
+          : `The previous recovery cycle transition pattern consequence was ${previous.consequence}, but the current consequence is ${currentConsequence}, so persistence resets for the new consequence.`,
+    };
+  }
+
+  const occurrences = previous.occurrences + 1;
+  const persistent = occurrences >= 3;
+
+  return {
+    consequence: currentConsequence,
+    occurrences,
+    persistent,
+    rationale: persistent
+      ? `The recovery cycle transition pattern consequence ${currentConsequence} has persisted for ${occurrences} consecutive evaluations, so the consequence is persistent.`
+      : `The recovery cycle transition pattern consequence ${currentConsequence} has now been observed for ${occurrences} consecutive evaluations, but persistence has not yet been established.`,
   };
 }
 
@@ -6382,6 +6431,12 @@ export function calculateRecovery(
       recoveryCycleTransitionPatternConsequence.consequence,
     );
 
+  const recoveryCycleTransitionPatternConsequencePersistence =
+    getRecoveryCycleTransitionPatternConsequencePersistence(
+      input.previousRecoveryCycleTransitionPatternConsequencePersistence,
+      recoveryCycleTransitionPatternConsequence.consequence,
+    );
+
   return {
     state,
     applicationActionEvents:
@@ -6423,6 +6478,7 @@ export function calculateRecovery(
     recoveryCycleTransitionPatternResponse,
     recoveryCycleTransitionPatternConsequence,
     recoveryCycleTransitionPatternConsequenceMemory,
+    recoveryCycleTransitionPatternConsequencePersistence,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,
