@@ -17,6 +17,7 @@ import {
   getRecoveryCycleTransitionPattern,
   getRecoveryCycleTransitionPatternMemory,
   getRecoveryCycleTransitionPatternResponse,
+  getRecoveryCycleTransitionPatternConsequence,
   getRecoveryCycleTransitionPatternPersistence,
   getRecoveryDirection,
   getRecoveryDirectionMemory,
@@ -6423,6 +6424,91 @@ test("recovery cycle transition pattern persistence starts fresh without previou
   assert.equal(result.persistent, false);
 });
 
+
+
+test("recovery cycle transition pattern consequence is NONE for NONE response", () => {
+  const result = getRecoveryCycleTransitionPatternConsequence({
+    pattern: "NONE",
+    persistent: false,
+    response: "NONE",
+    rationale: "No response.",
+  });
+
+  assert.equal(result.response, "NONE");
+  assert.equal(result.consequence, "NONE");
+});
+
+test("recovery cycle transition pattern consequence maintains CONTINUE response", () => {
+  const result = getRecoveryCycleTransitionPatternConsequence({
+    pattern: "REPEATING",
+    persistent: true,
+    response: "CONTINUE",
+    rationale: "Continue response.",
+  });
+
+  assert.equal(result.response, "CONTINUE");
+  assert.equal(result.consequence, "MAINTAIN");
+});
+
+test("recovery cycle transition pattern consequence reassesses REASSESS response", () => {
+  const result = getRecoveryCycleTransitionPatternConsequence({
+    pattern: "PERSISTENT",
+    persistent: true,
+    response: "REASSESS",
+    rationale: "Reassessment response.",
+  });
+
+  assert.equal(result.response, "REASSESS");
+  assert.equal(result.consequence, "REASSESS");
+});
+
+test("recovery cycle transition pattern consequence resets RESET response", () => {
+  const result = getRecoveryCycleTransitionPatternConsequence({
+    pattern: "PERSISTENT",
+    persistent: true,
+    response: "RESET",
+    rationale: "Reset response.",
+  });
+
+  assert.equal(result.response, "RESET");
+  assert.equal(result.consequence, "RESET");
+});
+
+test("recovery cycle transition pattern consequence preserves CONTINUE response identity", () => {
+  const result = getRecoveryCycleTransitionPatternConsequence({
+    pattern: "REPEATING",
+    persistent: true,
+    response: "CONTINUE",
+    rationale: "Persistent repeating pattern.",
+  });
+
+  assert.equal(result.response, "CONTINUE");
+  assert.equal(result.consequence, "MAINTAIN");
+});
+
+test("recovery cycle transition pattern consequence preserves REASSESS response identity", () => {
+  const result = getRecoveryCycleTransitionPatternConsequence({
+    pattern: "PERSISTENT",
+    persistent: true,
+    response: "REASSESS",
+    rationale: "Persistent pattern.",
+  });
+
+  assert.equal(result.response, "REASSESS");
+  assert.equal(result.consequence, "REASSESS");
+});
+
+test("recovery cycle transition pattern consequence explains reset", () => {
+  const result = getRecoveryCycleTransitionPatternConsequence({
+    pattern: "PERSISTENT",
+    persistent: true,
+    response: "RESET",
+    rationale: "Persistent pattern requires reset.",
+  });
+
+  assert.equal(result.consequence, "RESET");
+  assert.match(result.rationale, /reset/i);
+});
 
 test("recovery cycle transition pattern response is NONE without persistence", () => {
   const result = getRecoveryCycleTransitionPatternResponse({

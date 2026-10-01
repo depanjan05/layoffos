@@ -224,6 +224,12 @@ export type RecoveryCycleTransitionPatternResponse = {
   rationale: string;
 };
 
+export type RecoveryCycleTransitionPatternConsequence = {
+  response: RecoveryCycleTransitionPatternResponse["response"];
+  consequence: "NONE" | "MAINTAIN" | "REASSESS" | "RESET";
+  rationale: string;
+};
+
 
 export type RecoveryCycleTransitionPatternMemory = {
   previousPattern: RecoveryCycleTransitionPattern["pattern"] | null;
@@ -1075,6 +1081,7 @@ export type RecoveryEngineResult = {
   recoveryCycleTransitionPatternMemory: RecoveryCycleTransitionPatternMemory;
   recoveryCycleTransitionPatternPersistence: RecoveryCycleTransitionPatternPersistence;
   recoveryCycleTransitionPatternResponse: RecoveryCycleTransitionPatternResponse;
+  recoveryCycleTransitionPatternConsequence: RecoveryCycleTransitionPatternConsequence;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3482,6 +3489,44 @@ export function getRecoveryCycleTransitionPatternMemory(
     repeated: false,
     rationale:
       `The previous recovery cycle transition pattern was ${previous}, but the current pattern is ${currentPattern}, so the pattern has changed.`,
+  };
+}
+
+export function getRecoveryCycleTransitionPatternConsequence(
+  response: RecoveryCycleTransitionPatternResponse,
+): RecoveryCycleTransitionPatternConsequence {
+  if (response.response === "CONTINUE") {
+    return {
+      response: response.response,
+      consequence: "MAINTAIN",
+      rationale:
+        "The recovery cycle response is CONTINUE, so the current recovery approach is maintained.",
+    };
+  }
+
+  if (response.response === "REASSESS") {
+    return {
+      response: response.response,
+      consequence: "REASSESS",
+      rationale:
+        "The recovery cycle response is REASSESS, so the current recovery approach requires reassessment.",
+    };
+  }
+
+  if (response.response === "RESET") {
+    return {
+      response: response.response,
+      consequence: "RESET",
+      rationale:
+        "The recovery cycle response is RESET, so the current recovery approach is reset.",
+    };
+  }
+
+  return {
+    response: response.response,
+    consequence: "NONE",
+    rationale:
+      "The recovery cycle response is NONE, so no recovery cycle consequence is triggered.",
   };
 }
 
@@ -6270,6 +6315,12 @@ export function calculateRecovery(
       recoveryCycleTransitionPatternPersistence,
     );
 
+
+  const recoveryCycleTransitionPatternConsequence =
+    getRecoveryCycleTransitionPatternConsequence(
+      recoveryCycleTransitionPatternResponse,
+    );
+
   return {
     state,
     applicationActionEvents:
@@ -6309,6 +6360,7 @@ export function calculateRecovery(
     recoveryCycleTransitionPatternMemory,
     recoveryCycleTransitionPatternPersistence,
     recoveryCycleTransitionPatternResponse,
+    recoveryCycleTransitionPatternConsequence,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,
