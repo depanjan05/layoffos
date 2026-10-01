@@ -4170,6 +4170,99 @@ test("recovery execution plan falls back safely for an unknown decision", () => 
 });
 
 
+test("persistence-aware execution actions preserve an established direction", () => {
+  const plan = {
+    objective: "Advance the strongest active opportunity.",
+    sequence: ["Prepare for the next interview stage"],
+    immediateAction: "Prepare for the next interview stage",
+    supportingActions: [],
+    avoidActions: [],
+    confidence: "HIGH",
+  };
+
+  const actions = getExecutionActions(
+    plan,
+    [],
+    {
+      direction: "INTENSIFY",
+      consecutiveCycles: 4,
+      status: "PERSISTING",
+      rationale: "The direction has persisted.",
+      confidence: "HIGH",
+    },
+  );
+
+  assert.equal(actions.length > 0, true);
+  assert.equal(
+    actions.every((item) =>
+      item.step.includes("4 consecutive cycles"),
+    ),
+    true,
+  );
+});
+
+test("persistence-aware execution actions avoid expanding a new direction", () => {
+  const plan = {
+    objective: "Create qualified recovery opportunities.",
+    sequence: ["Create new qualified application opportunities"],
+    immediateAction: "Create new qualified application opportunities",
+    supportingActions: [],
+    avoidActions: [],
+    confidence: "LOW",
+  };
+
+  const actions = getExecutionActions(
+    plan,
+    [],
+    {
+      direction: "CONTINUE",
+      consecutiveCycles: 1,
+      status: "NEW",
+      rationale: "The direction is newly established.",
+      confidence: "LOW",
+    },
+  );
+
+  assert.equal(actions.length > 0, true);
+  assert.equal(
+    actions.every((item) =>
+      item.step.includes("newly established"),
+    ),
+    true,
+  );
+});
+
+test("persistence-aware execution actions reset assumptions after directional reset", () => {
+  const plan = {
+    objective: "Replace lost opportunity capacity.",
+    sequence: ["Create new qualified application opportunities"],
+    immediateAction: "Create new qualified application opportunities",
+    supportingActions: [],
+    avoidActions: [],
+    confidence: "HIGH",
+  };
+
+  const actions = getExecutionActions(
+    plan,
+    [],
+    {
+      direction: "REBUILD",
+      consecutiveCycles: 1,
+      status: "RESET",
+      rationale: "The previous path was materially reset.",
+      confidence: "HIGH",
+    },
+  );
+
+  assert.equal(actions.length > 0, true);
+  assert.equal(
+    actions.every((item) =>
+      item.step.includes("reset path"),
+    ),
+    true,
+  );
+});
+
 test("execution actions map plan steps to existing recovery actions", () => {
   const input: RecoveryEngineInput = {
     applications: [

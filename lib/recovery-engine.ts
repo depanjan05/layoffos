@@ -3284,8 +3284,9 @@ export function getRecoveryRecalibration(
 export function getExecutionActions(
   plan: RecoveryExecutionPlan,
   actions: RecoveryAction[],
+  recoveryDirectionPersistence?: RecoveryDirectionPersistence,
 ): RecoveryExecutionAction[] {
-  return plan.sequence.map((step) => {
+  const executionActions = plan.sequence.map((step) => {
     const candidates = EXECUTION_ACTION_MAP[step] ?? [];
 
     const action =
@@ -3301,6 +3302,29 @@ export function getExecutionActions(
       action,
     };
   });
+
+  if (recoveryDirectionPersistence === undefined) {
+    return executionActions;
+  }
+
+  if (recoveryDirectionPersistence.status === "PERSISTING") {
+    return executionActions.map((item) => ({
+      ...item,
+      step: `${item.step} | Persistence-aware execution actions: preserve the established recovery direction across ${recoveryDirectionPersistence.consecutiveCycles} consecutive cycles.`,
+    }));
+  }
+
+  if (recoveryDirectionPersistence.status === "RESET") {
+    return executionActions.map((item) => ({
+      ...item,
+      step: `${item.step} | Persistence-aware execution actions: treat the current direction as a reset path and do not carry forward prior execution assumptions.`,
+    }));
+  }
+
+  return executionActions.map((item) => ({
+    ...item,
+    step: `${item.step} | Persistence-aware execution actions: treat the current direction as newly established and avoid expanding execution solely from one cycle.`,
+  }));
 }
 
 export function getActions(
@@ -5757,7 +5781,8 @@ export function calculateRecovery(
 
   const executionActions = getExecutionActions(
     recoveryExecutionPlan,
-    actions
+    actions,
+    recoveryDirectionPersistence
   );
 
   const recoveryRecalibration = getRecoveryRecalibration(
