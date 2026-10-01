@@ -184,6 +184,13 @@ export type RecoveryCycleState = {
   source: RecoveryRecalibration["decisionStatus"] | "PERSISTENCE_RESET";
 };
 
+export type RecoveryCycleMemory = {
+  previousStatus: RecoveryCycleState["status"] | null;
+  currentStatus: RecoveryCycleState["status"];
+  carriedForward: boolean;
+  rationale: string;
+};
+
 export type RecoveryDirection = {
   direction:
     | "CONTINUE"
@@ -341,6 +348,7 @@ export type RecoveryEngineInput = {
   }>;
   previousRecoveryDirection?: RecoveryDirection["direction"] | null;
   previousRecoveryDirectionCycles?: number;
+  previousRecoveryCycleState?: RecoveryCycleState | null;
 };
 
 export type RecentProgression = {
@@ -1007,6 +1015,7 @@ export type RecoveryEngineResult = {
   executionActions: RecoveryExecutionAction[];
   recoveryRecalibration: RecoveryRecalibration;
   recoveryCycleState: RecoveryCycleState;
+  recoveryCycleMemory: RecoveryCycleMemory;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3203,6 +3212,41 @@ export function getRecoveryCycleState(
         ? `The current recovery direction remains supported across ${recoveryDirectionPersistence.consecutiveCycles} consecutive cycles, so the next cycle should continue the established path.`
         : "The current recovery decision and strategy remain supported, so the next cycle should continue the established path.",
     source: "HOLD",
+  };
+}
+
+export function getRecoveryCycleMemory(
+  previousCycleState: RecoveryCycleState | null | undefined,
+  currentCycleState: RecoveryCycleState,
+): RecoveryCycleMemory {
+  const previousStatus = previousCycleState?.status ?? null;
+
+  if (previousStatus === null) {
+    return {
+      previousStatus: null,
+      currentStatus: currentCycleState.status,
+      carriedForward: false,
+      rationale:
+        "No previous recovery cycle state is available, so this cycle establishes the current recovery cycle context.",
+    };
+  }
+
+  if (previousStatus === currentCycleState.status) {
+    return {
+      previousStatus,
+      currentStatus: currentCycleState.status,
+      carriedForward: true,
+      rationale:
+        `The previous recovery cycle was ${previousStatus}, and the current cycle remains ${currentCycleState.status}, so the cycle state continues with the same context.`,
+    };
+  }
+
+  return {
+    previousStatus,
+    currentStatus: currentCycleState.status,
+    carriedForward: false,
+    rationale:
+      `The previous recovery cycle was ${previousStatus}, but the current cycle is ${currentCycleState.status}, so the current evidence takes precedence and the cycle context changes.`,
   };
 }
 
@@ -5859,6 +5903,11 @@ export function calculateRecovery(
     recoveryDirectionPersistence,
   );
 
+  const recoveryCycleMemory = getRecoveryCycleMemory(
+    input.previousRecoveryCycleState,
+    recoveryCycleState,
+  );
+
   return {
     state,
     applicationActionEvents:
@@ -5891,6 +5940,7 @@ export function calculateRecovery(
     executionActions,
     recoveryRecalibration,
     recoveryCycleState,
+    recoveryCycleMemory,
     recoveryDirection,
     recoveryDirectionMemory,
     recoveryDirectionStability,

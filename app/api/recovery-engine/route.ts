@@ -29,6 +29,7 @@ export async function GET() {
     progressionEventsResult,
     applicationActionEventsResult,
     weeklyPlanTaskEventsResult,
+    recoveryCycleEventsResult,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -105,7 +106,60 @@ export async function GET() {
       .eq("entity_type", "weekly_plan_task")
       .order("created_at", { ascending: false })
       .limit(100),
+
+    supabase
+      .from("events")
+      .select("event_type, entity_type, metadata, created_at")
+      .eq("user_id", user.id)
+      .eq("event_type", "recovery_cycle_recorded")
+      .eq("entity_type", "recovery_cycle")
+      .order("created_at", { ascending: false })
+      .limit(1),
   ]);
+
+  const previousRecoveryCycleState = (() => {
+    const event = recoveryCycleEventsResult.data?.[0];
+
+    const metadata =
+      event?.metadata &&
+      typeof event.metadata === "object" &&
+      !Array.isArray(event.metadata)
+        ? (event.metadata as {
+            status?: unknown;
+            reason?: unknown;
+            source?: unknown;
+          })
+        : null;
+
+    if (
+      metadata?.status !== "CONTINUE" &&
+      metadata?.status !== "REASSESS" &&
+      metadata?.status !== "RESET"
+    ) {
+      return null;
+    }
+
+    if (typeof metadata.reason !== "string" || !metadata.reason.trim()) {
+      return null;
+    }
+
+    if (
+      metadata.source !== "HOLD" &&
+      metadata.source !== "REASSESS" &&
+      metadata.source !== "PERSISTENCE_RESET"
+    ) {
+      return null;
+    }
+
+    return {
+      status: metadata.status as "CONTINUE" | "REASSESS" | "RESET",
+      reason: metadata.reason,
+      source: metadata.source as
+        | "HOLD"
+        | "REASSESS"
+        | "PERSISTENCE_RESET",
+    };
+  })();
 
   const result = calculateRecovery({
     recoveryTiming: profileResult.data?.recovery_timing,
@@ -113,6 +167,7 @@ export async function GET() {
     careerStage: profileResult.data?.career_stage,
     targetWorkType: profileResult.data?.target_work_type,
     primaryFocus: profileResult.data?.primary_focus,
+    previousRecoveryCycleState,
 
     savings: financialResult.data?.savings ?? 0,
     severance: financialResult.data?.severance ?? 0,
@@ -263,9 +318,15 @@ export async function POST(request: Request) {
   }
 
   let body: {
+    action?: string;
     title?: string;
     href?: string;
     state?: string;
+    cycleState?: {
+      status?: string;
+      reason?: string;
+      source?: string;
+    };
   };
 
   try {
@@ -275,6 +336,57 @@ export async function POST(request: Request) {
       { error: "Invalid JSON body" },
       { status: 400 }
     );
+  }
+
+  if (body.action === "record_cycle") {
+    const cycleStatus = body.cycleState?.status;
+    const cycleReason = body.cycleState?.reason?.trim();
+    const cycleSource = body.cycleState?.source;
+
+    if (
+      (cycleStatus !== "CONTINUE" &&
+        cycleStatus !== "REASSESS" &&
+        cycleStatus !== "RESET") ||
+      !cycleReason ||
+      (cycleSource !== "HOLD" &&
+        cycleSource !== "REASSESS" &&
+        cycleSource !== "PERSISTENCE_RESET")
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "cycleState.status, cycleState.reason, and cycleState.source are required",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { error } = await supabase.from("events").insert({
+      user_id: user.id,
+      event_type: "recovery_cycle_recorded",
+      entity_type: "recovery_cycle",
+      metadata: {
+        status: cycleStatus,
+        reason: cycleReason,
+        source: cycleSource,
+        recorded_at: new Date().toISOString(),
+      },
+    });
+
+    if (error) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      message: "Recovery cycle recorded.",
+    });
   }
 
   const title = body.title?.trim();

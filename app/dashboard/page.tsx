@@ -728,6 +728,23 @@ export default function DashboardPage() {
 
         if (!cancelled && data) {
           setRecoveryEngine(data);
+
+          if (data.recoveryCycleState) {
+            try {
+              await fetch("/api/recovery-engine", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  action: "record_cycle",
+                  cycleState: data.recoveryCycleState,
+                }),
+              });
+            } catch {
+              // Cycle persistence is best-effort; the dashboard remains usable.
+            }
+          }
         }
       } catch {
         // Keep the dashboard usable if the engine is unavailable.

@@ -11,6 +11,7 @@ import {
   getRecoveryExecutionPlan,
   getRecoveryRecalibration,
   getRecoveryCycleState,
+  getRecoveryCycleMemory,
   getRecoveryDirection,
   getRecoveryDirectionMemory,
   getRecoveryDirectionStability,
@@ -5897,3 +5898,79 @@ test("persistence-aware recalibration holds an established direction", () => {
       ),
     );
   });
+
+
+test("recovery cycle memory establishes context without a previous cycle", () => {
+  const current = {
+    status: "CONTINUE",
+    reason: "The current recovery path remains supported.",
+    source: "HOLD",
+  } as const;
+
+  const memory = getRecoveryCycleMemory(null, current);
+
+  assert.equal(memory.previousStatus, null);
+  assert.equal(memory.currentStatus, "CONTINUE");
+  assert.equal(memory.carriedForward, false);
+  assert.match(memory.rationale, /No previous recovery cycle state is available/);
+});
+
+test("recovery cycle memory carries forward an unchanged cycle status", () => {
+  const previous = {
+    status: "CONTINUE",
+    reason: "Previous cycle continued.",
+    source: "HOLD",
+  } as const;
+
+  const current = {
+    status: "CONTINUE",
+    reason: "Current cycle continues.",
+    source: "HOLD",
+  } as const;
+
+  const memory = getRecoveryCycleMemory(previous, current);
+
+  assert.equal(memory.previousStatus, "CONTINUE");
+  assert.equal(memory.currentStatus, "CONTINUE");
+  assert.equal(memory.carriedForward, true);
+});
+
+test("recovery cycle memory identifies a reassessment transition", () => {
+  const previous = {
+    status: "CONTINUE",
+    reason: "Previous cycle continued.",
+    source: "HOLD",
+  } as const;
+
+  const current = {
+    status: "REASSESS",
+    reason: "Current evidence requires reassessment.",
+    source: "REASSESS",
+  } as const;
+
+  const memory = getRecoveryCycleMemory(previous, current);
+
+  assert.equal(memory.previousStatus, "CONTINUE");
+  assert.equal(memory.currentStatus, "REASSESS");
+  assert.equal(memory.carriedForward, false);
+});
+
+test("recovery cycle memory identifies a reset transition", () => {
+  const previous = {
+    status: "REASSESS",
+    reason: "Previous cycle required reassessment.",
+    source: "REASSESS",
+  } as const;
+
+  const current = {
+    status: "RESET",
+    reason: "Previous directional assumptions must be discarded.",
+    source: "PERSISTENCE_RESET",
+  } as const;
+
+  const memory = getRecoveryCycleMemory(previous, current);
+
+  assert.equal(memory.previousStatus, "REASSESS");
+  assert.equal(memory.currentStatus, "RESET");
+  assert.equal(memory.carriedForward, false);
+});
