@@ -39,6 +39,7 @@ import {
   getRecoveryCycleTransitionPatternConsequenceResponse,
   getRecoveryCycleTransitionPatternConsequenceResponseMemory,
   getRecoveryCycleTransitionPatternConsequenceResponsePersistence,
+  getRecoveryCycleTransitionPatternConsequenceResponseConsequence,
 } from "../lib/recovery-engine.ts";
 
 function progression(
@@ -7156,4 +7157,94 @@ test("V1.78 consequence response persistence explains changed response", () => {
   assert.equal(result.occurrences, 1);
   assert.equal(result.persistent, false);
   assert.match(result.rationale, /persistence resets.*new response/i);
+});
+
+
+test("V1.79 consequence response consequence maps NONE to NONE", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequence({
+      consequence: "NONE",
+      persistent: true,
+      response: "NONE",
+      rationale: "previous",
+    });
+
+  assert.equal(result.response, "NONE");
+  assert.equal(result.consequence, "NONE");
+});
+
+test("V1.79 consequence response consequence maps MAINTAIN to MAINTAIN", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequence({
+      consequence: "MAINTAIN",
+      persistent: true,
+      response: "MAINTAIN",
+      rationale: "previous",
+    });
+
+  assert.equal(result.response, "MAINTAIN");
+  assert.equal(result.consequence, "MAINTAIN");
+});
+
+test("V1.79 consequence response consequence maps REASSESS to REASSESS", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequence({
+      consequence: "REASSESS",
+      persistent: true,
+      response: "REASSESS",
+      rationale: "previous",
+    });
+
+  assert.equal(result.response, "REASSESS");
+  assert.equal(result.consequence, "REASSESS");
+});
+
+test("V1.79 consequence response consequence maps RESET to RESET", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequence({
+      consequence: "RESET",
+      persistent: true,
+      response: "RESET",
+      rationale: "previous",
+    });
+
+  assert.equal(result.response, "RESET");
+  assert.equal(result.consequence, "RESET");
+});
+
+test("V1.79 consequence response consequence preserves response identity", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequence({
+      consequence: "REASSESS",
+      persistent: true,
+      response: "REASSESS",
+      rationale: "previous",
+    });
+
+  assert.equal(result.response, "REASSESS");
+  assert.equal(result.consequence, "REASSESS");
+});
+
+test("V1.79 consequence response consequence explains reassessment", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequence({
+      consequence: "REASSESS",
+      persistent: true,
+      response: "REASSESS",
+      rationale: "previous",
+    });
+
+  assert.match(result.rationale, /reassessment/i);
+});
+
+test("V1.79 consequence response consequence explains reset", () => {
+  const result =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequence({
+      consequence: "RESET",
+      persistent: true,
+      response: "RESET",
+      rationale: "previous",
+    });
+
+  assert.match(result.rationale, /reset/i);
 });

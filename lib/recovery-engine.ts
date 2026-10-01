@@ -274,6 +274,13 @@ export type RecoveryCycleTransitionPatternConsequenceResponsePersistence = {
   rationale: string;
 };
 
+export type RecoveryCycleTransitionPatternConsequenceResponseConsequence = {
+  response:
+    RecoveryCycleTransitionPatternConsequenceResponse["response"];
+  consequence: "NONE" | "MAINTAIN" | "REASSESS" | "RESET";
+  rationale: string;
+};
+
 
 export type RecoveryCycleTransitionPatternMemory = {
   previousPattern: RecoveryCycleTransitionPattern["pattern"] | null;
@@ -466,6 +473,9 @@ export type RecoveryEngineInput = {
     | null;
   previousRecoveryCycleTransitionPatternConsequenceResponsePersistence?:
     | RecoveryCycleTransitionPatternConsequenceResponsePersistence
+    | null;
+  previousRecoveryCycleTransitionPatternConsequenceResponseConsequence?:
+    | RecoveryCycleTransitionPatternConsequenceResponseConsequence["consequence"]
     | null;
 };
 
@@ -1151,6 +1161,8 @@ export type RecoveryEngineResult = {
     RecoveryCycleTransitionPatternConsequenceResponseMemory;
   recoveryCycleTransitionPatternConsequenceResponsePersistence:
     RecoveryCycleTransitionPatternConsequenceResponsePersistence;
+  recoveryCycleTransitionPatternConsequenceResponseConsequence:
+    RecoveryCycleTransitionPatternConsequenceResponseConsequence;
   recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -3803,6 +3815,46 @@ export function getRecoveryCycleTransitionPatternConsequenceResponsePersistence(
     rationale: persistent
       ? `The recovery cycle transition pattern consequence response ${currentResponse} has persisted for ${occurrences} consecutive evaluations, so the response is persistent.`
       : `The recovery cycle transition pattern consequence response ${currentResponse} has now been observed for ${occurrences} consecutive evaluations, but persistence has not yet been established.`,
+  };
+}
+
+
+export function getRecoveryCycleTransitionPatternConsequenceResponseConsequence(
+  response:
+    RecoveryCycleTransitionPatternConsequenceResponse,
+): RecoveryCycleTransitionPatternConsequenceResponseConsequence {
+  if (response.response === "MAINTAIN") {
+    return {
+      response: response.response,
+      consequence: "MAINTAIN",
+      rationale:
+        "The recovery cycle transition pattern consequence response is MAINTAIN, so the current recovery approach remains maintained.",
+    };
+  }
+
+  if (response.response === "REASSESS") {
+    return {
+      response: response.response,
+      consequence: "REASSESS",
+      rationale:
+        "The recovery cycle transition pattern consequence response is REASSESS, so the current recovery approach requires reassessment.",
+    };
+  }
+
+  if (response.response === "RESET") {
+    return {
+      response: response.response,
+      consequence: "RESET",
+      rationale:
+        "The recovery cycle transition pattern consequence response is RESET, so the current recovery approach is reset.",
+    };
+  }
+
+  return {
+    response: response.response,
+    consequence: "NONE",
+    rationale:
+      "The recovery cycle transition pattern consequence response is NONE, so no recovery cycle consequence is triggered.",
   };
 }
 
@@ -6626,7 +6678,13 @@ export function calculateRecovery(
       recoveryCycleTransitionPatternConsequenceResponse.response,
     );
 
+  const recoveryCycleTransitionPatternConsequenceResponseConsequence =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequence(
+      recoveryCycleTransitionPatternConsequenceResponse,
+    );
+
   return {
+    recoveryCycleTransitionPatternConsequenceResponseConsequence,
     recoveryCycleTransitionPatternConsequenceResponsePersistence,
     recoveryCycleTransitionPatternConsequenceResponseMemory,
     recoveryCycleTransitionPatternConsequenceResponse,
