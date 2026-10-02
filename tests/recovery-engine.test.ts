@@ -50,6 +50,7 @@ import {
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse,
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequence,
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemory,
+  getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence,
 } from "../lib/recovery-engine.ts";
 
 function progression(
@@ -66,6 +67,113 @@ function progression(
     occurredAt: "2026-09-29T10:00:00.000Z",
   };
 }
+
+test("V1.90 response memory persistence establishes initial context", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence(null, "NONE");
+
+  assert.equal(result.response, "NONE");
+  assert.equal(result.occurrences, 1);
+  assert.equal(result.persistent, false);
+  assert.match(result.rationale, /initial persistence context/);
+});
+
+test("V1.90 response memory persistence increments matching response", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence(
+    {
+      response: "MAINTAIN",
+      occurrences: 1,
+      persistent: false,
+      rationale: "prior",
+    },
+    "MAINTAIN",
+  );
+
+  assert.equal(result.response, "MAINTAIN");
+  assert.equal(result.occurrences, 2);
+  assert.equal(result.persistent, false);
+});
+
+test("V1.90 response memory persistence becomes persistent on third occurrence", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence(
+    {
+      response: "REASSESS",
+      occurrences: 2,
+      persistent: false,
+      rationale: "prior",
+    },
+    "REASSESS",
+  );
+
+  assert.equal(result.response, "REASSESS");
+  assert.equal(result.occurrences, 3);
+  assert.equal(result.persistent, true);
+});
+
+test("V1.90 response memory persistence remains persistent after repetition", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence(
+    {
+      response: "RESET",
+      occurrences: 3,
+      persistent: true,
+      rationale: "prior",
+    },
+    "RESET",
+  );
+
+  assert.equal(result.response, "RESET");
+  assert.equal(result.occurrences, 4);
+  assert.equal(result.persistent, true);
+});
+
+test("V1.90 response memory persistence resets when response changes", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence(
+    {
+      response: "MAINTAIN",
+      occurrences: 5,
+      persistent: true,
+      rationale: "prior",
+    },
+    "REASSESS",
+  );
+
+  assert.equal(result.response, "REASSESS");
+  assert.equal(result.occurrences, 1);
+  assert.equal(result.persistent, false);
+  assert.match(result.rationale, /starts again from one occurrence/);
+});
+
+test("V1.90 response memory persistence tracks NONE independently", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence(
+    {
+      response: "NONE",
+      occurrences: 2,
+      persistent: false,
+      rationale: "prior",
+    },
+    "NONE",
+  );
+
+  assert.equal(result.response, "NONE");
+  assert.equal(result.occurrences, 3);
+  assert.equal(result.persistent, true);
+});
+
+test("V1.90 response memory persistence explains continued persistence", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence(
+    {
+      response: "RESET",
+      occurrences: 3,
+      persistent: true,
+      rationale: "prior",
+    },
+    "RESET",
+  );
+
+  assert.equal(result.response, "RESET");
+  assert.equal(result.occurrences, 4);
+  assert.equal(result.persistent, true);
+  assert.match(result.rationale, /persistence is established/);
+});
 
 test("forward progression is classified as ADVANCING", () => {
   assert.equal(

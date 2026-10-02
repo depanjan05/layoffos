@@ -358,7 +358,16 @@ export type RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponse
     RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse["response"];
   repeated: boolean;
   rationale: string;
+}
+
+export type RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence = {
+  response:
+    RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemory["currentResponse"];
+  occurrences: number;
+  persistent: boolean;
+  rationale: string;
 };
+;
 
 export function getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence(
   previousPersistence:
@@ -496,6 +505,43 @@ export function getRecoveryCycleTransitionPatternConsequenceResponseConsequenceR
     repeated: false,
     rationale:
       `The previous recovery cycle transition pattern consequence response persistence consequence persistence response was ${previous}, but the current response is ${currentResponse}, so the response has changed.`,
+  };
+}
+
+
+export function getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence(
+  previousPersistence:
+    | RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence
+    | null
+    | undefined,
+  currentResponse:
+    RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemory["currentResponse"],
+): RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence {
+  const previous = previousPersistence ?? null;
+
+  if (previous === null || previous.response !== currentResponse) {
+    return {
+      response: currentResponse,
+      occurrences: 1,
+      persistent: false,
+      rationale:
+        previous === null
+          ? "No previous recovery cycle transition pattern consequence response consequence response persistence consequence persistence response memory persistence is available, so the current response establishes the initial persistence context."
+          : `The previous recovery cycle transition pattern consequence response consequence response persistence consequence persistence response memory was ${previous.response}, but the current response is ${currentResponse}, so persistence starts again from one occurrence.`,
+    };
+  }
+
+  const occurrences = previous.occurrences + 1;
+  const persistent = occurrences >= 3;
+
+  return {
+    response: currentResponse,
+    occurrences,
+    persistent,
+    rationale:
+      persistent
+        ? `The recovery cycle transition pattern consequence response consequence response persistence consequence persistence response memory ${currentResponse} has persisted for ${occurrences} consecutive evaluations, so persistence is established.`
+        : `The recovery cycle transition pattern consequence response consequence response persistence consequence persistence response memory ${currentResponse} has now been observed for ${occurrences} consecutive evaluations, but persistence has not yet been established.`,
   };
 }
 
@@ -1009,6 +1055,14 @@ export type RecoveryEngineInput = {
   previousRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence?:
     | RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence
     | null;
+  previousRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence?:
+    | RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence
+    | null;
+
+  previousRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemory?:
+    | RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemory
+    | null;
+
   previousRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse?:
     | RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse["response"]
     | null;
@@ -1723,6 +1777,12 @@ export type RecoveryEngineResult = {
     RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence;
   recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse:
     RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse;
+  recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemory:
+    RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemory;
+
+  recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence:
+    RecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence;
+
 recoveryDirection: RecoveryDirection;
   recoveryDirectionMemory: RecoveryDirectionMemory;
   recoveryDirectionStability: RecoveryDirectionStability;
@@ -7295,6 +7355,12 @@ export function calculateRecovery(
       recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse.response,
     );
 
+  const recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence =
+    getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence(
+      input.previousRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence,
+      recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemory.currentResponse,
+    );
+
   const recoveryCycleTransitionPatternConsequenceResponseConsequenceMemory =
     getRecoveryCycleTransitionPatternConsequenceResponseConsequenceMemory(
       input.previousRecoveryCycleTransitionPatternConsequenceResponseConsequence,
@@ -7312,6 +7378,7 @@ export function calculateRecovery(
     recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistence,
     recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponse,
     recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemory,
+    recoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence,
 
         recoveryCycleTransitionPatternConsequenceResponseConsequenceMemory,
 recoveryCycleTransitionPatternConsequenceResponsePersistence,
