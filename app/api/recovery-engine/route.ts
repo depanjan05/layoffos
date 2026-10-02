@@ -168,6 +168,8 @@ export async function GET() {
     targetWorkType: profileResult.data?.target_work_type,
     primaryFocus: profileResult.data?.primary_focus,
     previousRecoveryCycleState,
+    previousRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence: null,
+    previousRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequence: null,
 
     savings: financialResult.data?.savings ?? 0,
     severance: financialResult.data?.severance ?? 0,
