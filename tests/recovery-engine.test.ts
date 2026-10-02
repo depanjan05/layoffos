@@ -52,6 +52,7 @@ import {
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemory,
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequence,
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemory,
+  getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence,
   getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistence,
 } from "../lib/recovery-engine.ts";
 
@@ -70,6 +71,75 @@ function progression(
   };
 }
 
+
+
+test("V1.93 consequence memory persistence establishes initial context", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(null, "MAINTAIN");
+
+  assert.equal(result.previousConsequence, null);
+  assert.equal(result.currentConsequence, "MAINTAIN");
+  assert.equal(result.occurrences, 1);
+  assert.equal(result.persistent, false);
+});
+
+test("V1.93 matching consequence increments persistence", () => {
+  const first = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(null, "MAINTAIN");
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(first, "MAINTAIN");
+
+  assert.equal(result.previousConsequence, "MAINTAIN");
+  assert.equal(result.currentConsequence, "MAINTAIN");
+  assert.equal(result.occurrences, 2);
+  assert.equal(result.persistent, false);
+});
+
+test("V1.93 consequence becomes persistent on third occurrence", () => {
+  const first = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(null, "MAINTAIN");
+  const second = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(first, "MAINTAIN");
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(second, "MAINTAIN");
+
+  assert.equal(result.occurrences, 3);
+  assert.equal(result.persistent, true);
+});
+
+test("V1.93 persistent consequence remains persistent after repetition", () => {
+  const first = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(null, "RESET");
+  const second = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(first, "RESET");
+  const third = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(second, "RESET");
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(third, "RESET");
+
+  assert.equal(result.occurrences, 4);
+  assert.equal(result.persistent, true);
+});
+
+test("V1.93 consequence persistence resets when consequence changes", () => {
+  const first = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(null, "MAINTAIN");
+  const second = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(first, "MAINTAIN");
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(second, "REASSESS");
+
+  assert.equal(result.previousConsequence, "MAINTAIN");
+  assert.equal(result.currentConsequence, "REASSESS");
+  assert.equal(result.occurrences, 1);
+  assert.equal(result.persistent, false);
+});
+
+test("V1.93 consequence persistence tracks NONE independently", () => {
+  const first = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(null, "NONE");
+  const second = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(first, "NONE");
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(second, "NONE");
+
+  assert.equal(result.currentConsequence, "NONE");
+  assert.equal(result.occurrences, 3);
+  assert.equal(result.persistent, true);
+});
+
+test("V1.93 persistence rationale explains established persistence", () => {
+  const first = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(null, "RESET");
+  const second = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(first, "RESET");
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistence(second, "RESET");
+
+  assert.equal(result.persistent, true);
+  assert.match(result.rationale, /persistence is established/);
+});
 
 test("V1.92 consequence memory establishes initial context", () => {
   const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemory(null, "MAINTAIN");
