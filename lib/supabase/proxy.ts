@@ -41,7 +41,7 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  const publicRoutes = ["/", "/auth", "/start"];
+  const publicRoutes = ["/", "/auth", "/start", "/auth/callback"];
 
   const isPublicRoute =
     publicRoutes.includes(pathname) ||

@@ -30,6 +30,7 @@ export default function AuthPage() {
           data: {
             name: name.trim(),
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
