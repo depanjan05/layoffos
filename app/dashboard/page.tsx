@@ -2631,7 +2631,7 @@ export default function DashboardPage() {
                     <span
                       className={`rounded-full px-2.5 py-1 text-[10px] font-bold tracking-[0.12em] ${
                         task.priority === "HIGH"
-                          ? "bg-[#111] text-white"
+                          ? "bg-[#111] !text-white"
                           : "bg-[#eeeeea] text-[#66665f]"
                       }`}
                     >
