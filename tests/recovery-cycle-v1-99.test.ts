@@ -1,0 +1,73 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence } from "../lib/recovery-engine.ts";
+
+test("V1.99 initial changed-state persistence establishes context", () => {
+  const result = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(null, true);
+
+  assert.equal(result.previousChanged, null);
+  assert.equal(result.currentChanged, true);
+  assert.equal(result.occurrences, 1);
+  assert.equal(result.persistent, false);
+});
+
+test("V1.99 repeated false becomes persistent on third occurrence", () => {
+  let memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(null, false);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, false);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, false);
+
+  assert.equal(memory.currentChanged, false);
+  assert.equal(memory.occurrences, 3);
+  assert.equal(memory.persistent, true);
+});
+
+test("V1.99 repeated true becomes persistent on third occurrence", () => {
+  let memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(null, true);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, true);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, true);
+
+  assert.equal(memory.currentChanged, true);
+  assert.equal(memory.occurrences, 3);
+  assert.equal(memory.persistent, true);
+});
+
+test("V1.99 persistent state continues accumulating", () => {
+  let memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(null, true);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, true);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, true);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, true);
+
+  assert.equal(memory.occurrences, 4);
+  assert.equal(memory.persistent, true);
+});
+
+test("V1.99 true to false resets persistence", () => {
+  let memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(null, true);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, true);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, true);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, false);
+
+  assert.equal(memory.previousChanged, true);
+  assert.equal(memory.currentChanged, false);
+  assert.equal(memory.occurrences, 1);
+  assert.equal(memory.persistent, false);
+});
+
+test("V1.99 false to true resets persistence", () => {
+  let memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(null, false);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, false);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, true);
+
+  assert.equal(memory.previousChanged, false);
+  assert.equal(memory.currentChanged, true);
+  assert.equal(memory.occurrences, 1);
+  assert.equal(memory.persistent, false);
+});
+
+test("V1.99 rationale explains persistence", () => {
+  let memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(null, true);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, true);
+  memory = getRecoveryCycleTransitionPatternConsequenceResponseConsequenceResponsePersistenceConsequencePersistenceResponseMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistenceConsequenceMemoryPersistence(memory, true);
+
+  assert.match(memory.rationale, /V1\.99 persistence is established/);
+});
