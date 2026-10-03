@@ -454,10 +454,30 @@ export default function DashboardPage() {
         const savedRecovery = localStorage.getItem(RECOVERY_KEY);
 
         if (savedRecovery) {
-          setRecovery({
+          const parsedRecovery = JSON.parse(savedRecovery);
+
+          const hydratedRecovery: RecoveryData = {
             ...defaultRecovery,
-            ...JSON.parse(savedRecovery),
-          });
+            ...parsedRecovery,
+          };
+
+          if (typeof parsedRecovery.runway === "string") {
+            try {
+              const parsedRunway = JSON.parse(parsedRecovery.runway);
+
+              hydratedRecovery.savings = Number(parsedRunway.savings) || 0;
+              hydratedRecovery.monthlyExpenses =
+                Number(parsedRunway.expenses) || 0;
+              hydratedRecovery.severance =
+                Number(parsedRunway.severance) || 0;
+              hydratedRecovery.otherIncome =
+                Number(parsedRunway.otherIncome) || 0;
+            } catch {
+              // Keep default financial values if the stored runway payload is invalid.
+            }
+          }
+
+          setRecovery(hydratedRecovery);
         }
 
         const savedRunway = localStorage.getItem(RUNWAY_KEY);
