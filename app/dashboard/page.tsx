@@ -52,18 +52,6 @@ type RecoveryEngineResult = {
     evidence: string[];
     confidence: "HIGH" | "MEDIUM" | "LOW";
   };
-  recalibration: {
-    needed: boolean;
-    headline: string;
-    summary: string;
-    reason: string;
-    nextFocus:
-      | "FINANCIAL"
-      | "APPLICATIONS"
-      | "NETWORKING"
-      | "INTERVIEWS"
-      | "DIRECTION";
-  };
 
   actionEffect: {
     status: "POSITIVE" | "NEGATIVE" | "NEUTRAL" | "UNKNOWN";
@@ -2177,56 +2165,6 @@ export default function DashboardPage() {
                         </p>
                       )}
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* RECALIBRATION */}
-              <div className="mt-7 rounded-2xl border border-[#deded8] p-5 sm:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="max-w-3xl">
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#888880]">
-                      Recovery recalibration
-                    </p>
-
-                    <h3 className="mt-2 text-xl font-bold tracking-tight text-[#111]">
-                      {recoveryEngine.recalibration.headline}
-                    </h3>
-
-                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
-                      {recoveryEngine.recalibration.summary}
-                    </p>
-                  </div>
-
-                  <span className="shrink-0 text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
-                    {recoveryEngine.recalibration.needed
-                      ? "Needed"
-                      : "Not needed"}
-                  </span>
-                </div>
-
-                <div className="mt-5 grid gap-5 border-t border-[#deded8] pt-5 md:grid-cols-2">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
-                      Reason
-                    </p>
-
-                    <p className="mt-2 text-sm leading-6 text-[#66665f]">
-                      {recoveryEngine.recalibration.reason}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#888880]">
-                      Next focus
-                    </p>
-
-                    <p className="mt-2 text-sm font-bold text-[#111]">
-                      {recoveryEngine.recalibration.nextFocus.replaceAll(
-                        "_",
-                        " "
-                      )}
-                    </p>
                   </div>
                 </div>
               </div>
