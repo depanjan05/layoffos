@@ -1584,7 +1584,7 @@ export default function DashboardPage() {
                         {recoveryEngine.recoveryDecision.objective}
                       </p>
                     </div>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-[0.1em] text-[#55554f]">
+                    <span className="rounded-full bg-[#171714] px-3 py-1 text-xs font-bold uppercase tracking-[0.1em] text-white">
                       {recoveryEngine.recoveryExecutionPlan.confidence} confidence
                     </span>
                   </div>
@@ -1649,7 +1649,7 @@ export default function DashboardPage() {
                                     <div className="mt-3 flex flex-wrap items-center gap-2">
                                       <a
                                         href={executionAction.href}
-                                        className="inline-flex items-center rounded-lg bg-[#171714] px-3 py-2 text-xs font-bold text-white transition-opacity hover:opacity-85"
+                                        className="inline-flex items-center rounded-lg border border-[#cfcfc7] bg-white px-3 py-2 text-xs font-bold text-[#111] transition-colors hover:bg-[#f3f3ee]"
                                       >
                                         Open action
                                       </a>
